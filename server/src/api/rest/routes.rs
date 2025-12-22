@@ -822,7 +822,7 @@ async fn download_file(
 ) -> Result<impl IntoResponse, AppError> {
     let _user_id = extract_user_id(&state, &headers)?;
 
-    tracing::debug!("Download request for file ID: {}", id);
+    tracing::info!("Download request for file ID: {}", id);
 
     use crate::db::{chunks, versions};
 
@@ -1923,9 +1923,20 @@ impl From<sqlx::Error> for AppError {
 
 impl From<BlobError> for AppError {
     fn from(err: BlobError) -> Self {
-        // SECURITY: Log the full error server-side but return generic message to client
         tracing::error!("Storage error: {}", err);
-        AppError::Internal("An internal error occurred".to_string())
+        match err {
+            BlobError::NotFound(hash) => {
+                // Blob not found is a 404, not 500 - helps client understand what's missing
+                AppError::NotFound(format!("Blob not found: {}", hash))
+            }
+            BlobError::InvalidHash(hash) => {
+                AppError::BadRequest(format!("Invalid blob hash: {}", hash))
+            }
+            BlobError::Io(_) => {
+                // SECURITY: Don't expose IO details to client
+                AppError::Internal("Storage error".to_string())
+            }
+        }
     }
 }
 
