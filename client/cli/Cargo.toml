@@ -1,0 +1,65 @@
+[package]
+name = "tangle"
+version = "0.1.0"
+edition = "2021"
+description = "Entanglement file sync CLI client"
+license = "MIT"
+
+[[bin]]
+name = "tangle"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# gRPC client
+tonic = "0.11"
+prost = "0.12"
+
+# HTTP client for REST API
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# File watching
+notify = "6"
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+thiserror = "1"
+anyhow = "1"
+directories = "5"
+walkdir = "2"
+rpassword = "7"
+tokio-stream = "0.1"
+dirs = "5"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Config
+toml = "0.8"
+
+# TUI for status
+ratatui = "0.28"
+crossterm = "0.28"
+
+# Progress bars
+indicatif = "0.17"
+
+# Local database
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+[build-dependencies]
+tonic-build = "0.11"
+

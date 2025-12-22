@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entanglement</title>
+    <meta name="description" content="Enterprise file synchronization manager">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Login View -->
+    <div id="login-view" class="view" hidden>
+        <div class="login-container">
+            <header class="login-header">
+                <img src="logo.svg" alt="Entanglement" class="logo-img">
+            </header>
+            <form id="login-form" autocomplete="off">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div id="login-error" class="error-message" hidden></div>
+                <button type="submit" class="btn-primary">Sign In</button>
+            </form>
+            <footer class="login-footer">
+                <span class="status-indicator"></span>
+                <span id="server-status">Checking connection...</span>
+            </footer>
+        </div>
+    </div>
+
+    <!-- File Browser View -->
+    <div id="browser-view" class="view" hidden>
+        <header class="browser-header">
+            <div class="header-left">
+                <img src="logo.svg" alt="Entanglement" class="logo-img">
+            </div>
+            <div class="header-right">
+                <div class="user-menu-container">
+                    <button id="user-menu-btn" class="settings-icon-btn" aria-label="Settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg>
+                    </button>
+                    <div id="user-dropdown" class="user-dropdown" hidden>
+                        <div class="dropdown-header" id="user-email"></div>
+                        <div class="dropdown-toggle">
+                            <span>Dark Mode</span>
+                            <div id="theme-toggle" class="toggle-switch"></div>
+                        </div>
+                        <div class="dropdown-separator"></div>
+                        <button id="logout-btn" class="dropdown-item">Log Out</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <nav class="breadcrumb-bar">
+            <!-- Label removed for cleaner look -->
+            <div id="breadcrumb" class="breadcrumb"></div>
+        </nav>
+
+        <main class="file-browser">
+            <table class="file-table">
+                <thead>
+                    <tr>
+                        <th class="col-name">Name</th>
+                        <th class="col-size">Size</th>
+                        <th class="col-modified">Date Modified</th>
+                        <th class="col-actions"></th>
+                    </tr>
+                </thead>
+                <tbody id="file-list">
+                    <!-- Files populated by JavaScript -->
+                </tbody>
+            </table>
+            <div id="empty-state" class="empty-state" hidden>
+                <p>No files in this directory</p>
+            </div>
+            <div id="loading-state" class="loading-state" hidden>
+                <p>Loading...</p>
+            </div>
+        </main>
+
+        <footer class="browser-footer">
+            <div class="footer-left">
+                <span id="item-count">0 items</span>
+            </div>
+            <div class="footer-right">
+                <span id="current-time"></span>
+            </div>
+        </footer>
+
+        <!-- Audio Player Bar -->
+        <div id="audio-player" class="audio-player" hidden>
+            <button id="audio-play-btn" class="audio-play-btn" aria-label="Play/Pause">
+                <span id="audio-play-icon">▶</span>
+            </button>
+            <span id="audio-track-name" class="audio-track-name"></span>
+            <span id="audio-current-time" class="audio-time">0:00</span>
+            <input type="range" id="audio-progress" class="audio-progress" value="0" min="0" max="100">
+            <span id="audio-duration" class="audio-time">0:00</span>
+            <button id="audio-close-btn" class="audio-close-btn" aria-label="Close">×</button>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="preview-modal" class="preview-modal" hidden>
+        <div class="preview-backdrop"></div>
+        <div class="preview-container">
+            <button id="preview-close" class="preview-close" aria-label="Close">×</button>
+            <div id="preview-content" class="preview-content">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Immediately apply theme to prevent flash
+        if (localStorage.getItem('entanglement_theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        // Immediately show correct view to prevent flash
+        if (localStorage.getItem('entanglement_token')) {
+            document.getElementById('browser-view').hidden = false;
+        } else {
+            document.getElementById('login-view').hidden = false;
+        }
+    </script>
+    <script src="app.js?v=9"></script>
+</body>
+
+</html>

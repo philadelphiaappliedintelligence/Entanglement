@@ -1,0 +1,1131 @@
+/**
+ * Entanglement Web File Manager
+ * Lightweight client for the Entanglement file sync server
+ */
+
+// Dynamically determine API base URL:
+// Uses the current host with API port 1975
+const API_BASE = `${window.location.protocol}//${window.location.hostname}:1975`;
+
+// Audio file extensions (defined early for use in renderFileList)
+const AUDIO_EXTENSIONS = ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'wma', 'aiff', 'aif', 'alac', 'opus'];
+
+function isAudioFile(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    return AUDIO_EXTENSIONS.includes(ext);
+}
+
+// Video file extensions
+const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'm4v', 'ogv', 'avi', 'mkv'];
+
+function isVideoFile(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    return VIDEO_EXTENSIONS.includes(ext);
+}
+
+// State
+let state = {
+    token: localStorage.getItem('entanglement_token'),
+    userEmail: localStorage.getItem('entanglement_email'),
+    currentPath: '',
+    serverName: 'Entanglement', // Default fallback
+};
+
+// DOM Elements
+const loginView = document.getElementById('login-view');
+const browserView = document.getElementById('browser-view');
+const loginForm = document.getElementById('login-form');
+const loginError = document.getElementById('login-error');
+const serverStatus = document.getElementById('server-status');
+const statusIndicator = document.querySelector('.status-indicator');
+const userEmailEl = document.getElementById('user-email');
+const logoutBtn = document.getElementById('logout-btn');
+const breadcrumb = document.getElementById('breadcrumb');
+const fileList = document.getElementById('file-list');
+const emptyState = document.getElementById('empty-state');
+const loadingState = document.getElementById('loading-state');
+const itemCount = document.getElementById('item-count');
+const currentTime = document.getElementById('current-time');
+const userMenuBtn = document.getElementById('user-menu-btn');
+const userDropdown = document.getElementById('user-dropdown');
+const previewModal = document.getElementById('preview-modal');
+const previewContent = document.getElementById('preview-content');
+const previewClose = document.getElementById('preview-close');
+const previewBackdrop = document.querySelector('.preview-backdrop');
+
+// =============================================================================
+// Initialization
+// =============================================================================
+
+async function init() {
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // Try to get server info first
+    await fetchServerInfo();
+    await checkServerStatus();
+
+    if (state.token) {
+        showBrowser();
+        const savedPath = localStorage.getItem('entanglement_path') || '';
+        await loadDirectory(savedPath);
+    } else {
+        showLogin();
+    }
+
+    setupEventListeners();
+}
+
+async function fetchServerInfo() {
+    try {
+        const response = await fetch(`${API_BASE}/server/info`);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.name) {
+                state.serverName = data.name;
+            }
+        }
+    } catch (e) {
+        console.warn('Could not fetch server info, using default name');
+    }
+}
+
+function setupEventListeners() {
+    loginForm.addEventListener('submit', handleLogin);
+
+    // User Dropdown Logic
+    userMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const expanded = userMenuBtn.getAttribute('aria-expanded') === 'true';
+        userMenuBtn.setAttribute('aria-expanded', !expanded);
+        userDropdown.hidden = expanded;
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (userMenuBtn && userDropdown && !userMenuBtn.contains(e.target) && !userDropdown.contains(e.target)) {
+            userDropdown.hidden = true;
+            userMenuBtn.setAttribute('aria-expanded', 'false');
+        }
+    });
+
+    logoutBtn.addEventListener('click', handleLogout);
+
+    // Theme toggle
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        // Initialize toggle state
+        const savedTheme = localStorage.getItem('entanglement_theme');
+        if (savedTheme === 'dark') {
+            themeToggle.classList.add('active');
+        }
+
+        themeToggle.addEventListener('click', () => {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('entanglement_theme', 'light');
+                themeToggle.classList.remove('active');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('entanglement_theme', 'dark');
+                themeToggle.classList.add('active');
+            }
+        });
+    }
+
+    // Drag and drop upload
+    setupDragAndDrop();
+}
+
+// =============================================================================
+// Authentication
+// =============================================================================
+
+async function checkServerStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/v1/files/list?path=`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        // 401 means server is up but requires auth
+        if (response.ok || response.status === 401) {
+            statusIndicator.classList.add('connected');
+            statusIndicator.classList.remove('error');
+            serverStatus.textContent = 'Server connected';
+            return true;
+        }
+    } catch (error) {
+        statusIndicator.classList.add('error');
+        statusIndicator.classList.remove('connected');
+        serverStatus.textContent = 'Server unavailable';
+    }
+    return false;
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const submitBtn = loginForm.querySelector('button[type="submit"]');
+
+    loginError.hidden = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Authenticating...';
+
+    try {
+        const response = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || 'Authentication failed');
+        }
+
+        const data = await response.json();
+
+        state.token = data.token;
+        state.userEmail = email;
+
+        localStorage.setItem('entanglement_token', data.token);
+        localStorage.setItem('entanglement_email', email);
+
+        showBrowser();
+        await loadDirectory('');
+
+    } catch (error) {
+        loginError.textContent = error.message;
+        loginError.hidden = false;
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
+    }
+}
+
+function handleLogout() {
+    state.token = null;
+    state.userEmail = null;
+    state.currentPath = '';
+    state.serverName = 'Entanglement'; // Reset server name logic if needed, but keeping it is fine
+
+    localStorage.removeItem('entanglement_token');
+    localStorage.removeItem('entanglement_email');
+
+    showLogin();
+}
+
+// =============================================================================
+// Views
+// =============================================================================
+
+function showLogin() {
+    loginView.hidden = false;
+    browserView.hidden = true;
+    loginForm.reset();
+    loginError.hidden = true;
+}
+
+function showBrowser() {
+    loginView.hidden = true;
+    browserView.hidden = false;
+    userEmailEl.textContent = state.userEmail;
+}
+
+// =============================================================================
+// File Browser
+// =============================================================================
+
+async function loadDirectory(path) {
+    state.currentPath = path;
+    localStorage.setItem('entanglement_path', path);
+
+    fileList.innerHTML = '';
+    emptyState.hidden = true;
+    loadingState.hidden = false;
+
+    renderBreadcrumb(path);
+
+    try {
+        const response = await fetch(`${API_BASE}/v1/files/list?path=${encodeURIComponent(path)}`, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (response.status === 401) {
+            handleLogout();
+            return;
+        }
+
+        if (!response.ok) {
+            throw new Error('Failed to load directory');
+        }
+
+        const data = await response.json();
+
+        loadingState.hidden = true;
+
+        if (data.entries && data.entries.length > 0) {
+            renderFileList(data.entries);
+            itemCount.textContent = `${data.entries.length} item${data.entries.length !== 1 ? 's' : ''}`;
+        } else {
+            emptyState.hidden = false;
+            itemCount.textContent = '0 items';
+        }
+
+    } catch (error) {
+        console.error('Error loading directory:', error);
+        loadingState.hidden = true;
+        emptyState.querySelector('p').textContent = 'Error loading directory';
+        emptyState.hidden = false;
+    }
+}
+
+function renderBreadcrumb(path) {
+    breadcrumb.innerHTML = '';
+
+    // Root (Server Name)
+    const root = document.createElement('span');
+    root.className = 'breadcrumb-item' + (path === '' ? ' current' : '');
+    root.textContent = state.serverName;
+    root.onclick = () => loadDirectory('');
+    breadcrumb.appendChild(root);
+
+    if (path) {
+        const parts = path.replace(/\/$/, '').split('/').filter(Boolean);
+        let accumulated = '';
+
+        parts.forEach((part, index) => {
+            accumulated += part + '/';
+            const isLast = index === parts.length - 1;
+
+            const separator = document.createElement('span');
+            separator.className = 'breadcrumb-separator';
+            separator.textContent = '/';
+            breadcrumb.appendChild(separator);
+
+            const item = document.createElement('span');
+            item.className = 'breadcrumb-item' + (isLast ? ' current' : '');
+            item.textContent = part;
+            if (!isLast) {
+                const pathToLoad = accumulated;
+                item.onclick = () => loadDirectory(pathToLoad);
+            }
+            breadcrumb.appendChild(item);
+        });
+    }
+}
+
+function renderFileList(entries) {
+    // Sort: folders first, then alphabetically
+    const sorted = entries.sort((a, b) => {
+        if (a.is_folder !== b.is_folder) {
+            return a.is_folder ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+    });
+
+    sorted.forEach(entry => {
+        const tr = document.createElement('tr');
+
+        // Name column
+        const tdName = document.createElement('td');
+        tdName.className = 'col-name';
+
+        const fileEntry = document.createElement('div');
+        fileEntry.className = 'file-entry';
+
+        const icon = document.createElement('img');
+        icon.className = 'file-icon';
+        icon.src = getFileTypeIcon(entry.name, entry.is_folder);
+        icon.alt = entry.is_folder ? 'Folder' : 'File';
+        icon.draggable = false;
+
+        const name = document.createElement('span');
+        name.className = 'file-name' + (entry.is_folder ? ' folder' : '');
+        name.textContent = entry.name;
+
+        if (entry.is_folder) {
+            name.onclick = () => loadDirectory(entry.path);
+        } else if (isVideoFile(entry.name)) {
+            name.classList.add('previewable');
+            name.onclick = () => previewVideo(entry);
+        } else if (isAudioFile(entry.name)) {
+            name.classList.add('previewable');
+            name.onclick = () => playAudio(entry);
+        } else if (isPreviewable(entry.name)) {
+            name.classList.add('previewable');
+            name.onclick = () => previewFile(entry);
+        }
+
+        fileEntry.appendChild(icon);
+        fileEntry.appendChild(name);
+        tdName.appendChild(fileEntry);
+
+        // Size column
+        const tdSize = document.createElement('td');
+        tdSize.className = 'col-size';
+        tdSize.textContent = entry.is_folder ? '—' : formatBytes(entry.size_bytes);
+
+        // Modified column
+        const tdModified = document.createElement('td');
+        tdModified.className = 'col-modified';
+        tdModified.textContent = formatDate(entry.updated_at);
+
+        // Actions column
+        const tdActions = document.createElement('td');
+        tdActions.className = 'col-actions';
+
+        if (!entry.is_folder && entry.version_id) {
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'btn-download';
+            downloadBtn.textContent = 'Download';
+            downloadBtn.onclick = () => downloadFile(entry);
+            tdActions.appendChild(downloadBtn);
+        }
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdSize);
+        tr.appendChild(tdModified);
+        tr.appendChild(tdActions);
+
+        fileList.appendChild(tr);
+    });
+}
+
+// =============================================================================
+// File Download
+// =============================================================================
+
+async function downloadFile(entry) {
+    try {
+        const response = await fetch(`${API_BASE}/v1/files/${entry.version_id}/download`, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('Download failed');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = entry.name;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+    } catch (error) {
+        console.error('Download error:', error);
+        alert('Download failed: ' + error.message);
+    }
+}
+
+// =============================================================================
+// File Preview
+// =============================================================================
+
+const PREVIEWABLE_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+const PREVIEWABLE_VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'm4v', 'ogv'];
+const PREVIEWABLE_TEXT_EXTENSIONS = [
+    'txt', 'md', 'markdown', 'json', 'yaml', 'yml', 'xml', 'csv',
+    'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs',
+    'py', 'pyw', 'rb', 'php', 'java', 'c', 'h', 'cpp', 'hpp', 'go', 'rs', 'swift',
+    'html', 'htm', 'css', 'scss', 'sass', 'less',
+    'sh', 'bash', 'zsh', 'ps1', 'bat', 'cmd',
+    'sql', 'conf', 'cfg', 'ini', 'env', 'toml', 'plist',
+    'log', 'gitignore', 'dockerignore', 'editorconfig'
+];
+
+function isPreviewable(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    const basename = filename.toLowerCase();
+
+    // Check for dotfiles that are text
+    if (basename.startsWith('.') && !basename.includes('.', 1)) {
+        return 'text';
+    }
+
+    if (PREVIEWABLE_IMAGE_EXTENSIONS.includes(ext)) {
+        return 'image';
+    }
+    if (PREVIEWABLE_VIDEO_EXTENSIONS.includes(ext)) {
+        return 'video';
+    }
+    if (ext === 'pdf') {
+        return 'pdf';
+    }
+    if (PREVIEWABLE_TEXT_EXTENSIONS.includes(ext)) {
+        return 'text';
+    }
+    return null;
+}
+
+async function previewFile(entry) {
+    const previewType = isPreviewable(entry.name);
+    if (!previewType || !entry.version_id) return;
+
+    // Find the file icon and show loading state
+    const fileRows = fileList.querySelectorAll('tr');
+    for (const row of fileRows) {
+        const fileName = row.querySelector('.file-name');
+        if (fileName && fileName.textContent === entry.name) {
+            const icon = row.querySelector('.file-icon');
+            if (icon) {
+                currentLoadingIcon = { element: icon, originalSrc: icon.src };
+                icon.src = 'icons/loading.svg';
+                icon.classList.add('loading-spin');
+            }
+            break;
+        }
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/v1/files/${entry.version_id}/download`, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+            },
+        });
+
+        if (!response.ok) {
+            restoreLoadingIcon();
+            throw new Error('Failed to load file');
+        }
+
+        if (previewType === 'image') {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = entry.name;
+            img.onload = () => {
+                restoreLoadingIcon();
+                previewContent.innerHTML = '';
+                previewContent.appendChild(img);
+                previewModal.hidden = false;
+                document.body.style.overflow = 'hidden';
+            };
+            img.onerror = () => {
+                restoreLoadingIcon();
+                previewContent.innerHTML = '<span class="preview-error">Failed to load image</span>';
+                previewModal.hidden = false;
+                document.body.style.overflow = 'hidden';
+            };
+        } else if (previewType === 'video') {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const video = document.createElement('video');
+            video.src = url;
+            video.controls = true;
+            video.autoplay = true;
+            video.onloadeddata = () => {
+                restoreLoadingIcon();
+                previewContent.innerHTML = '';
+                previewContent.appendChild(video);
+                previewModal.hidden = false;
+                document.body.style.overflow = 'hidden';
+            };
+            video.onerror = () => {
+                restoreLoadingIcon();
+                previewContent.innerHTML = '<span class="preview-error">Failed to load video</span>';
+                previewModal.hidden = false;
+                document.body.style.overflow = 'hidden';
+            };
+        } else if (previewType === 'pdf') {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const iframe = document.createElement('iframe');
+            iframe.src = url;
+            iframe.className = 'pdf-preview';
+            iframe.title = entry.name;
+            // PDF iframes don't reliably fire onload, show immediately
+            restoreLoadingIcon();
+            previewContent.innerHTML = '';
+            previewContent.appendChild(iframe);
+            previewModal.hidden = false;
+            document.body.style.overflow = 'hidden';
+        } else if (previewType === 'text') {
+            const text = await response.text();
+            const pre = document.createElement('pre');
+            pre.textContent = text;
+            restoreLoadingIcon();
+            previewContent.innerHTML = '';
+            previewContent.appendChild(pre);
+            previewModal.hidden = false;
+            document.body.style.overflow = 'hidden';
+        }
+
+    } catch (error) {
+        restoreLoadingIcon();
+        console.error('Preview error:', error);
+        // Security: Use textContent to prevent XSS from error messages
+        const errorSpan = document.createElement('span');
+        errorSpan.className = 'preview-error';
+        errorSpan.textContent = `Preview failed: ${error.message}`;
+        previewContent.innerHTML = '';
+        previewContent.appendChild(errorSpan);
+        previewModal.hidden = false;
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closePreview() {
+    previewModal.hidden = true;
+    document.body.style.overflow = '';
+    // Stop any playing video and release resources
+    const video = previewContent.querySelector('video');
+    if (video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+    }
+    previewContent.innerHTML = '';
+    restoreLoadingIcon();
+}
+
+let currentLoadingIcon = null;
+
+async function previewVideo(entry) {
+    if (!entry.version_id) return;
+
+    // Find the file icon and show loading state
+    const fileRows = fileList.querySelectorAll('tr');
+    for (const row of fileRows) {
+        const fileName = row.querySelector('.file-name');
+        if (fileName && fileName.textContent === entry.name) {
+            const icon = row.querySelector('.file-icon');
+            if (icon) {
+                currentLoadingIcon = { element: icon, originalSrc: icon.src };
+                icon.src = 'icons/loading.svg';
+                icon.classList.add('loading-spin');
+            }
+            break;
+        }
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/v1/files/${entry.version_id}/download`, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+            },
+        });
+
+        if (!response.ok) {
+            restoreLoadingIcon();
+            throw new Error('Failed to load video');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const video = document.createElement('video');
+        video.src = url;
+        video.controls = true;
+        video.autoplay = true;
+
+        // Wait for video to be ready before showing modal
+        video.onloadeddata = () => {
+            restoreLoadingIcon();
+            previewContent.innerHTML = '';
+            previewContent.appendChild(video);
+            previewModal.hidden = false;
+            document.body.style.overflow = 'hidden';
+        };
+        video.onerror = () => {
+            restoreLoadingIcon();
+            alert('Failed to load video');
+        };
+
+    } catch (error) {
+        restoreLoadingIcon();
+        console.error('Video preview error:', error);
+        alert('Preview failed: ' + error.message);
+    }
+}
+
+function restoreLoadingIcon() {
+    if (currentLoadingIcon) {
+        currentLoadingIcon.element.src = currentLoadingIcon.originalSrc;
+        currentLoadingIcon.element.classList.remove('loading-spin');
+        currentLoadingIcon = null;
+    }
+}
+
+// Preview event listeners
+if (previewClose) {
+    previewClose.addEventListener('click', closePreview);
+}
+if (previewBackdrop) {
+    previewBackdrop.addEventListener('click', closePreview);
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !previewModal.hidden) {
+        closePreview();
+    }
+});
+
+// =============================================================================
+// Audio Player
+// =============================================================================
+
+const audioPlayer = document.getElementById('audio-player');
+const audioPlayBtn = document.getElementById('audio-play-btn');
+const audioPlayIcon = document.getElementById('audio-play-icon');
+const audioTrackName = document.getElementById('audio-track-name');
+const audioProgress = document.getElementById('audio-progress');
+const audioCurrentTime = document.getElementById('audio-current-time');
+const audioDuration = document.getElementById('audio-duration');
+const audioCloseBtn = document.getElementById('audio-close-btn');
+
+let audioElement = null;
+
+// SVG Icons
+const PLAY_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M240,128a15.74,15.74,0,0,1-7.6,13.51L88.32,229.65a16,16,0,0,1-16.2.3A15.86,15.86,0,0,1,64,216.13V39.87a15.86,15.86,0,0,1,8.12-13.82,16,16,0,0,1,16.2.3L232.4,114.49A15.74,15.74,0,0,1,240,128Z"/></svg>';
+const PAUSE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M216,48V208a16,16,0,0,1-16,16H160a16,16,0,0,1-16-16V48a16,16,0,0,1,16-16h40A16,16,0,0,1,216,48ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Z"/></svg>';
+
+async function playAudio(entry) {
+    if (!entry.version_id) return;
+
+    // Stop any existing audio
+    if (audioElement) {
+        audioElement.pause();
+        audioElement = null;
+    }
+
+    // Show player
+    audioTrackName.textContent = entry.name;
+    audioPlayer.hidden = false;
+    audioPlayIcon.innerHTML = PLAY_ICON;
+    audioProgress.value = 0;
+    audioCurrentTime.textContent = '0:00';
+    audioDuration.textContent = '0:00';
+    updateProgressBackground(0);
+
+    try {
+        const response = await fetch(`${API_BASE}/v1/files/${entry.version_id}/download`, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load audio');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        audioElement = new Audio(url);
+
+        audioElement.addEventListener('loadedmetadata', () => {
+            audioDuration.textContent = formatAudioTime(audioElement.duration);
+        });
+
+        audioElement.addEventListener('timeupdate', () => {
+            if (audioElement.duration) {
+                const percent = (audioElement.currentTime / audioElement.duration) * 100;
+                audioProgress.value = percent;
+                audioCurrentTime.textContent = formatAudioTime(audioElement.currentTime);
+                updateProgressBackground(percent);
+            }
+        });
+
+        audioElement.addEventListener('ended', () => {
+            audioPlayIcon.innerHTML = PLAY_ICON;
+        });
+
+        audioElement.play();
+        audioPlayIcon.innerHTML = PAUSE_ICON;
+
+    } catch (error) {
+        console.error('Audio error:', error);
+        closeAudioPlayer();
+    }
+}
+
+function toggleAudioPlayback() {
+    if (!audioElement) return;
+
+    if (audioElement.paused) {
+        audioElement.play();
+        audioPlayIcon.innerHTML = PAUSE_ICON;
+    } else {
+        audioElement.pause();
+        audioPlayIcon.innerHTML = PLAY_ICON;
+    }
+}
+
+function seekAudio(e) {
+    if (!audioElement || !audioElement.duration) return;
+    const percent = e.target.value;
+    audioElement.currentTime = (percent / 100) * audioElement.duration;
+    updateProgressBackground(percent);
+}
+
+function updateProgressBackground(percent) {
+    const black = 'var(--color-text-primary)';
+    const grey = 'var(--color-border)';
+    audioProgress.style.background = `linear-gradient(to right, ${black} ${percent}%, ${grey} ${percent}%)`;
+}
+
+function closeAudioPlayer() {
+    if (audioElement) {
+        audioElement.pause();
+        audioElement = null;
+    }
+    audioPlayer.hidden = true;
+    // Reset progress bar background
+    audioProgress.style.background = 'var(--color-border)';
+}
+
+function formatAudioTime(seconds) {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Audio player event listeners
+if (audioPlayBtn) {
+    audioPlayBtn.addEventListener('click', toggleAudioPlayback);
+}
+if (audioProgress) {
+    audioProgress.addEventListener('input', seekAudio);
+}
+if (audioCloseBtn) {
+    audioCloseBtn.addEventListener('click', closeAudioPlayer);
+}
+
+// =============================================================================
+// Utilities
+// =============================================================================
+
+/**
+ * Returns the icon path for a given file based on its extension
+ */
+function getFileTypeIcon(filename, isFolder) {
+    if (isFolder) {
+        return 'icons/folder.svg';
+    }
+
+    const ext = filename.split('.').pop().toLowerCase();
+
+    // Image files
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'bmp', 'tiff', 'heic', 'heif', 'raw', 'psd', 'ai'].includes(ext)) {
+        return 'icons/image.svg';
+    }
+
+    // Video files
+    if (['mp4', 'mov', 'avi', 'mkv', 'wmv', 'flv', 'webm', 'm4v', 'mpeg', 'mpg', '3gp'].includes(ext)) {
+        return 'icons/video.svg';
+    }
+
+    // Audio files
+    if (['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'wma', 'aiff', 'aif', 'alac', 'opus'].includes(ext)) {
+        return 'icons/audio.svg';
+    }
+
+    // Document files
+    if (['pdf'].includes(ext)) {
+        return 'icons/pdf.svg';
+    }
+    if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) {
+        return 'icons/document.svg';
+    }
+    if (['xls', 'xlsx', 'ods', 'csv'].includes(ext)) {
+        return 'icons/spreadsheet.svg';
+    }
+    if (['ppt', 'pptx', 'odp', 'key'].includes(ext)) {
+        return 'icons/presentation.svg';
+    }
+    if (['txt', 'md', 'markdown', 'rst'].includes(ext)) {
+        return 'icons/text.svg';
+    }
+
+    // Code files
+    if (['js', 'jsx', 'mjs', 'cjs'].includes(ext)) {
+        return 'icons/code-js.svg';
+    }
+    if (['ts', 'tsx'].includes(ext)) {
+        return 'icons/code-ts.svg';
+    }
+    if (['py', 'pyw', 'pyi'].includes(ext)) {
+        return 'icons/code-python.svg';
+    }
+    if (['swift'].includes(ext)) {
+        return 'icons/code-swift.svg';
+    }
+    if (['go'].includes(ext)) {
+        return 'icons/code-go.svg';
+    }
+    if (['rs'].includes(ext)) {
+        return 'icons/code-rust.svg';
+    }
+    if (['rb', 'erb'].includes(ext)) {
+        return 'icons/code-ruby.svg';
+    }
+    if (['java', 'kt', 'kts', 'scala'].includes(ext)) {
+        return 'icons/code-java.svg';
+    }
+    if (['c', 'h'].includes(ext)) {
+        return 'icons/code-c.svg';
+    }
+    if (['cpp', 'cc', 'cxx', 'hpp', 'hxx'].includes(ext)) {
+        return 'icons/code-cpp.svg';
+    }
+    if (['php'].includes(ext)) {
+        return 'icons/code-php.svg';
+    }
+    if (['html', 'htm', 'xhtml'].includes(ext)) {
+        return 'icons/code-html.svg';
+    }
+    if (['css', 'scss', 'sass', 'less'].includes(ext)) {
+        return 'icons/code-css.svg';
+    }
+
+    // Config & Data
+    if (['json', 'yaml', 'yml', 'toml', 'xml', 'plist', 'ini', 'conf', 'cfg'].includes(ext)) {
+        return 'icons/config.svg';
+    }
+    if (['sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd'].includes(ext)) {
+        return 'icons/terminal.svg';
+    }
+    if (['sql', 'db', 'sqlite', 'sqlite3'].includes(ext)) {
+        return 'icons/database.svg';
+    }
+
+    // Archive files
+    if (['zip', 'tar', 'gz', 'bz2', 'xz', '7z', 'rar', 'tgz', 'tbz2'].includes(ext)) {
+        return 'icons/archive.svg';
+    }
+
+    // Executable / Binary / Packages
+    if (['exe', 'app', 'msi', 'deb', 'rpm', 'apk', 'ipa', 'dmg', 'pkg'].includes(ext)) {
+        return 'icons/package.svg';
+    }
+
+    // Font files
+    if (['ttf', 'otf', 'woff', 'woff2', 'eot'].includes(ext)) {
+        return 'icons/font.svg';
+    }
+
+    // 3D files
+    if (['obj', 'fbx', 'blend', 'stl', '3ds', 'dae', 'gltf', 'glb'].includes(ext)) {
+        return 'icons/3d.svg';
+    }
+
+    // Design files
+    if (['sketch', 'fig', 'xd'].includes(ext)) {
+        return 'icons/design.svg';
+    }
+
+    // eBooks
+    if (['epub', 'mobi', 'azw', 'azw3'].includes(ext)) {
+        return 'icons/ebook.svg';
+    }
+
+    // Lock / dotfiles
+    if (['lock', 'lockb'].includes(ext) || filename.startsWith('.')) {
+        return 'icons/lock.svg';
+    }
+
+    // Default file icon
+    return 'icons/file.svg';
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0 || bytes === null || bytes === undefined) return '0 B';
+
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const k = 1024;
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + units[i];
+}
+
+function formatDate(isoString) {
+    if (!isoString) return '—';
+
+    const date = new Date(isoString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+function updateClock() {
+    const now = new Date();
+    // Use user's local timezone
+    const timeString = now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true // Or true if preferred, keeping 24h as prev code implied or system default
+    });
+
+    // Get time zone abbreviation (e.g. EST, GMT, etc.)
+    const timeZone = now.toLocaleTimeString([], { timeZoneName: 'short' }).split(' ').pop();
+
+    currentTime.textContent = `${timeString} ${timeZone}`;
+}
+
+// =============================================================================
+// Drag and Drop Upload
+// =============================================================================
+
+let dropOverlay = null;
+
+function setupDragAndDrop() {
+    // Prevent default drag behaviors on the whole window
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    // Show overlay on dragenter
+    document.body.addEventListener('dragenter', showDropOverlay, false);
+    document.body.addEventListener('dragover', showDropOverlay, false);
+    document.body.addEventListener('dragleave', handleDragLeave, false);
+    document.body.addEventListener('drop', handleDrop, false);
+}
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+function showDropOverlay(e) {
+    if (!state.token) return; // Not logged in
+
+    if (!dropOverlay) {
+        dropOverlay = document.createElement('div');
+        dropOverlay.className = 'drop-overlay';
+        dropOverlay.innerHTML = `
+            <div class="drop-overlay-content">
+                <div class="drop-overlay-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" width="64" height="64">
+                        <path d="M248,128a87.34,87.34,0,0,1-17.6,52.81,8,8,0,1,1-12.8-9.62A71.34,71.34,0,0,0,232,128a72,72,0,0,0-144,0,8,8,0,0,1-16,0,88,88,0,0,1,3.29-23.88C74.2,104,73.1,104,72,104a48,48,0,0,0,0,96H96a8,8,0,0,1,0,16H72A64,64,0,1,1,81.29,88.68,88,88,0,0,1,248,128Zm-90.34-5.66a8,8,0,0,0-11.32,0l-32,32a8,8,0,0,0,11.32,11.32L144,147.31V208a8,8,0,0,0,16,0V147.31l18.34,18.35a8,8,0,0,0,11.32-11.32Z"/>
+                    </svg>
+                </div>
+                <div class="drop-overlay-text">Drop files to upload</div>
+                <div class="drop-overlay-hint">Files will be uploaded to the current folder</div>
+            </div>
+        `;
+        document.body.appendChild(dropOverlay);
+    }
+}
+
+function handleDragLeave(e) {
+    // Only hide if leaving the window entirely
+    if (e.relatedTarget === null || !document.body.contains(e.relatedTarget)) {
+        hideDropOverlay();
+    }
+}
+
+function hideDropOverlay() {
+    if (dropOverlay) {
+        dropOverlay.remove();
+        dropOverlay = null;
+    }
+}
+
+async function handleDrop(e) {
+    hideDropOverlay();
+
+    if (!state.token) return;
+
+    const files = e.dataTransfer.files;
+    if (files.length === 0) return;
+
+    // Upload each file
+    for (const file of files) {
+        await uploadFile(file);
+    }
+
+    // Refresh the directory
+    await loadDirectory(state.currentPath);
+}
+
+async function uploadFile(file) {
+    const progressEl = showUploadProgress(file.name);
+
+    try {
+        // Prepend leading slash if not present
+        let filePath = state.currentPath ? `${state.currentPath}${file.name}` : file.name;
+        if (!filePath.startsWith('/')) {
+            filePath = '/' + filePath;
+        }
+
+        // Read file and convert to base64
+        const arrayBuffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        const base64Content = btoa(binary);
+
+        const response = await fetch(`${API_BASE}/files`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                path: filePath,
+                content: base64Content,
+            }),
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || 'Upload failed');
+        }
+
+        console.log(`Uploaded: ${file.name}`);
+
+    } catch (error) {
+        console.error('Upload error:', error);
+        alert(`Failed to upload ${file.name}: ${error.message}`);
+    } finally {
+        hideUploadProgress(progressEl);
+    }
+}
+
+function showUploadProgress(filename) {
+    const el = document.createElement('div');
+    el.className = 'upload-progress';
+    // Security: Build DOM elements programmatically to prevent XSS from filenames
+    const spinner = document.createElement('div');
+    spinner.className = 'upload-progress-spinner';
+    const text = document.createElement('span');
+    text.className = 'upload-progress-text';
+    text.textContent = `Uploading ${filename}...`;
+    el.appendChild(spinner);
+    el.appendChild(text);
+    document.body.appendChild(el);
+    return el;
+}
+
+function hideUploadProgress(el) {
+    if (el && el.parentNode) {
+        el.remove();
+    }
+}
+
+// =============================================================================
+// Start
+// =============================================================================
+
+init();

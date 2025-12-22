@@ -1,0 +1,19 @@
+# Rust build artifacts (7GB+)
+target/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+
+# Local data
+data/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store

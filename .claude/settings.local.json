@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(xcodebuild:*)",
+      "Bash(log stream:*)",
+      "Bash(log show:*)",
+      "Bash(Console.app)",
+      "Bash(killall:*)",
+      "Bash(open:*)",
+      "Bash(swiftc:*)",
+      "Bash(./test_menubar:*)",
+      "Bash(/Users/admin/Desktop/Entanglement/client/macos/Entanglement/test_menubar:*)",
+      "Bash(/Users/admin/Library/Developer/Xcode/DerivedData/Entanglement-fuhthqlyuoeufueukeimrlepogew/Build/Products/Debug/Entanglement.app/Contents/MacOS/Entanglement:*)",
+      "Bash(./test_simple:*)",
+      "Bash(./SimpleMenuBar:*)",
+      "Bash(sudo dtrace:*)",
+      "Bash(otool:*)",
+      "Bash(codesign -d --entitlements -:*)",
+      "Bash(docker exec:*)",
+      "Bash(curl:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker system prune:*)"
+    ]
+  }
+}

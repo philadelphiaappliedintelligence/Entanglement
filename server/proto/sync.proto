@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package entanglement.sync;
+
+// The main sync service for file operations
+service SyncService {
+    // Push a file to the server (streaming upload)
+    rpc PushFile(stream PushFileRequest) returns (PushFileResponse);
+    
+    // Get file contents (streaming download)
+    rpc GetFile(GetFileRequest) returns (stream GetFileResponse);
+    
+    // List all versions of a file
+    rpc ListVersions(ListVersionsRequest) returns (ListVersionsResponse);
+    
+    // Get changes since a sync cursor (delta sync)
+    rpc GetChanges(GetChangesRequest) returns (stream ChangeEvent);
+    
+    // Delete a file (soft delete)
+    rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
+    
+    // List all files for the authenticated user
+    rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+}
+
+// Push file request - first message contains metadata, subsequent contain chunks
+message PushFileRequest {
+    oneof data {
+        FileMetadata metadata = 1;
+        bytes chunk = 2;
+    }
+}
+
+message FileMetadata {
+    string path = 1;           // Virtual path e.g. "/docs/report.docx"
+    int64 size_bytes = 2;      // Total file size
+    string content_hash = 3;   // SHA-256 hash (optional, for verification)
+}
+
+message PushFileResponse {
+    string file_id = 1;
+    string version_id = 2;
+    string blob_hash = 3;
+    bool deduplicated = 4;     // True if content already existed
+}
+
+// Get file request
+message GetFileRequest {
+    oneof identifier {
+        string file_id = 1;
+        string path = 2;
+    }
+    string version_id = 3;     // Optional: specific version, else latest
+}
+
+message GetFileResponse {
+    oneof data {
+        FileInfo info = 1;     // First message contains file info
+        bytes chunk = 2;       // Subsequent messages contain data chunks
+    }
+}
+
+message FileInfo {
+    string file_id = 1;
+    string version_id = 2;
+    string path = 3;
+    int64 size_bytes = 4;
+    string blob_hash = 5;
+    int64 created_at = 6;      // Unix timestamp
+}
+
+// List versions request
+message ListVersionsRequest {
+    oneof identifier {
+        string file_id = 1;
+        string path = 2;
+    }
+    int32 limit = 3;           // Max versions to return (default 50)
+    int32 offset = 4;          // Pagination offset
+}
+
+message ListVersionsResponse {
+    repeated VersionInfo versions = 1;
+    int32 total_count = 2;
+}
+
+message VersionInfo {
+    string version_id = 1;
+    string blob_hash = 2;
+    int64 size_bytes = 3;
+    int64 created_at = 4;      // Unix timestamp
+    string created_by = 5;     // User ID
+}
+
+// Get changes (delta sync) request
+message GetChangesRequest {
+    string cursor = 1;         // Opaque cursor from previous sync, empty for initial
+    int32 limit = 2;           // Max changes per batch (default 100)
+}
+
+message ChangeEvent {
+    enum ChangeType {
+        CREATED = 0;
+        MODIFIED = 1;
+        DELETED = 2;
+    }
+    
+    ChangeType change_type = 1;
+    string file_id = 2;
+    string path = 3;
+    string version_id = 4;     // Latest version (empty if deleted)
+    int64 size_bytes = 5;
+    string blob_hash = 6;
+    int64 timestamp = 7;       // Unix timestamp of change
+    string cursor = 8;         // Cursor after this change
+}
+
+// Delete file request
+message DeleteFileRequest {
+    oneof identifier {
+        string file_id = 1;
+        string path = 2;
+    }
+}
+
+message DeleteFileResponse {
+    bool success = 1;
+    string file_id = 2;
+}
+
+// List files request
+message ListFilesRequest {
+    string prefix = 1;         // Optional path prefix filter
+    bool include_deleted = 2;  // Include soft-deleted files
+    int32 limit = 3;
+    int32 offset = 4;
+}
+
+message ListFilesResponse {
+    repeated FileEntry files = 1;
+    int32 total_count = 2;
+}
+
+message FileEntry {
+    string file_id = 1;
+    string path = 2;
+    int64 size_bytes = 3;
+    string blob_hash = 4;
+    bool is_deleted = 5;
+    int64 created_at = 6;
+    int64 updated_at = 7;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+

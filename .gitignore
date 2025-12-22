@@ -1,0 +1,29 @@
+# Rust
+/server/target/
+**/*.rs.bk
+Cargo.lock
+
+# Generated protobuf
+/server/src/proto/
+
+# Environment
+.env
+.env.local
+
+# Data directories
+/data/
+/server/data/
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+
