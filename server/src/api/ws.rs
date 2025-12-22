@@ -8,12 +8,16 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Query, State,
     },
-    response::IntoResponse,
+    http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::broadcast;
+use std::time::Instant;
+use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 use crate::api::AppState;
 use crate::auth;
@@ -37,18 +41,80 @@ impl SyncNotification {
     }
 }
 
+/// Rate limiter for file change broadcasts per user
+/// Prevents malicious users from flooding the broadcast channel
+#[derive(Clone)]
+pub struct BroadcastRateLimiter {
+    /// Per-user token bucket: user_id -> (tokens, last_refill_time)
+    buckets: Arc<RwLock<HashMap<Uuid, (u32, Instant)>>>,
+    /// Maximum tokens (burst capacity)
+    max_tokens: u32,
+    /// Tokens refilled per second
+    refill_rate: u32,
+}
+
+impl BroadcastRateLimiter {
+    pub fn new(max_tokens: u32, refill_rate: u32) -> Self {
+        Self {
+            buckets: Arc::new(RwLock::new(HashMap::new())),
+            max_tokens,
+            refill_rate,
+        }
+    }
+
+    /// Try to consume a token for the given user
+    /// Returns true if allowed, false if rate limited
+    pub async fn try_acquire(&self, user_id: Uuid) -> bool {
+        let mut buckets = self.buckets.write().await;
+        let now = Instant::now();
+
+        let (tokens, last_refill) = buckets
+            .entry(user_id)
+            .or_insert((self.max_tokens, now));
+
+        // Refill tokens based on elapsed time
+        let elapsed = now.duration_since(*last_refill);
+        let refill_amount = (elapsed.as_secs_f32() * self.refill_rate as f32) as u32;
+        if refill_amount > 0 {
+            *tokens = (*tokens + refill_amount).min(self.max_tokens);
+            *last_refill = now;
+        }
+
+        // Try to consume a token
+        if *tokens > 0 {
+            *tokens -= 1;
+            true
+        } else {
+            warn!("Rate limiting user {} for broadcast spam", user_id);
+            false
+        }
+    }
+}
+
+impl Default for BroadcastRateLimiter {
+    fn default() -> Self {
+        // Allow burst of 50 file ops, refill 10 per second
+        Self::new(50, 10)
+    }
+}
+
 /// Hub for broadcasting sync notifications to all connected clients
 #[derive(Clone)]
 pub struct SyncHub {
     /// Broadcast channel sender
     tx: broadcast::Sender<SyncNotification>,
+    /// Rate limiter for broadcasts
+    rate_limiter: BroadcastRateLimiter,
 }
 
 impl SyncHub {
     /// Create a new SyncHub with specified channel capacity
     pub fn new(capacity: usize) -> Self {
         let (tx, _) = broadcast::channel(capacity);
-        Self { tx }
+        Self {
+            tx,
+            rate_limiter: BroadcastRateLimiter::default(),
+        }
     }
 
     /// Broadcast a notification to all connected clients
@@ -57,7 +123,20 @@ impl SyncHub {
         let _ = self.tx.send(notification);
     }
 
-    /// Broadcast a file change event
+    /// Broadcast a file change event with rate limiting
+    /// Returns false if rate limited
+    pub async fn notify_file_changed_rate_limited(&self, path: &str, action: &str, user_id: Uuid) -> bool {
+        if !self.rate_limiter.try_acquire(user_id).await {
+            warn!("Dropping broadcast for user {} due to rate limiting", user_id);
+            return false;
+        }
+        let notification = SyncNotification::file_changed(path, action);
+        debug!("Broadcasting sync notification: {:?}", notification);
+        self.broadcast(notification);
+        true
+    }
+
+    /// Broadcast a file change event (no rate limiting - for internal use)
     pub fn notify_file_changed(&self, path: &str, action: &str) {
         let notification = SyncNotification::file_changed(path, action);
         debug!("Broadcasting sync notification: {:?}", notification);
@@ -88,26 +167,24 @@ pub struct WsQuery {
 /// GET /ws/sync?token=<jwt>
 ///
 /// Upgrades the connection to WebSocket and subscribes to sync notifications.
+/// Returns 401 Unauthorized if authentication fails (does NOT upgrade connection).
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
     Query(query): Query<WsQuery>,
     State(state): State<AppState>,
-) -> impl IntoResponse {
-    // Validate token
-    // Validate token
+) -> Response {
+    // Validate token BEFORE upgrading connection
+    // This prevents resource exhaustion from failed auth attempts
     match auth::verify_token(&state.config.jwt_secret, &query.token) {
         Ok(user_id) => {
             info!("WebSocket connection authenticated for user: {}", user_id);
-            ws.on_upgrade(move |socket| handle_socket(socket, state))
+            ws.on_upgrade(move |socket| handle_socket(socket, state)).into_response()
         }
         Err(e) => {
             warn!("WebSocket auth failed: {}", e);
-            // Return 401 by not upgrading
-            // Axum will handle this gracefully
-            ws.on_upgrade(|socket| async move {
-                // Close immediately with error
-                let _ = socket;
-            })
+            // Return 401 Unauthorized WITHOUT upgrading the connection
+            // This prevents resource allocation for unauthenticated requests
+            (StatusCode::UNAUTHORIZED, "Invalid or expired token").into_response()
         }
     }
 }
