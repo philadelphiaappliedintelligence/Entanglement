@@ -456,9 +456,121 @@ body {
 .breadcrumb-bar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 12px var(--page-padding);
     background-color: var(--color-white);
     flex-shrink: 0;
+}
+
+/* Toolbar */
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-toolbar:hover {
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-white);
+}
+
+.btn-toolbar:hover svg {
+    stroke: var(--color-white);
+}
+
+.btn-toolbar svg {
+    flex-shrink: 0;
+}
+
+/* WebSocket Status Indicator */
+.ws-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+}
+
+.ws-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-text-secondary);
+    transition: background-color 0.3s ease;
+}
+
+.ws-status.connected .ws-dot {
+    background-color: #34c759; /* Apple Green */
+}
+
+.ws-status.disconnected .ws-dot {
+    background-color: var(--color-text-secondary);
+}
+
+.ws-status.reconnecting .ws-dot {
+    background-color: #ff9500; /* Apple Orange */
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* Delete Button */
+.btn-delete {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: #ff3b30; /* Apple Red */
+    background-color: rgba(255, 59, 48, 0.1);
+    border: none;
+    padding: 4px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-left: 8px;
+}
+
+.btn-delete:hover {
+    background-color: #ff3b30;
+    color: var(--color-white);
+}
+
+/* Rename Button */
+.btn-rename {
+    font-family: var(--font-sans);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    background-color: transparent;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-left: 8px;
+}
+
+.btn-rename:hover {
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text-primary);
 }
 
 .breadcrumb-label {

@@ -134,6 +134,12 @@ function setupEventListeners() {
         });
     }
 
+    // New folder button
+    const newFolderBtn = document.getElementById('new-folder-btn');
+    if (newFolderBtn) {
+        newFolderBtn.addEventListener('click', createNewFolder);
+    }
+
     // Drag and drop upload
     setupDragAndDrop();
 }
@@ -207,6 +213,9 @@ async function handleLogin(e) {
 }
 
 function handleLogout() {
+    // Disconnect WebSocket
+    disconnectWebSocket();
+
     state.token = null;
     state.userEmail = null;
     state.currentPath = '';
@@ -233,6 +242,8 @@ function showBrowser() {
     loginView.hidden = true;
     browserView.hidden = false;
     userEmailEl.textContent = state.userEmail;
+    // Connect to WebSocket for real-time sync
+    connectWebSocket();
 }
 
 // =============================================================================
@@ -380,6 +391,26 @@ function renderFileList(entries) {
         // Actions column
         const tdActions = document.createElement('td');
         tdActions.className = 'col-actions';
+
+        // Rename button (for all items)
+        const renameBtn = document.createElement('button');
+        renameBtn.className = 'btn-rename';
+        renameBtn.textContent = 'Rename';
+        renameBtn.onclick = (e) => {
+            e.stopPropagation();
+            renameItem(entry);
+        };
+        tdActions.appendChild(renameBtn);
+
+        // Delete button (for all items)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn-delete';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation();
+            deleteItem(entry);
+        };
+        tdActions.appendChild(deleteBtn);
 
         if (!entry.is_folder && entry.version_id) {
             const downloadBtn = document.createElement('button');
@@ -1122,6 +1153,261 @@ function hideUploadProgress(el) {
     if (el && el.parentNode) {
         el.remove();
     }
+}
+
+// =============================================================================
+// New Folder Creation
+// =============================================================================
+
+async function createNewFolder() {
+    const folderName = prompt('Enter folder name:');
+    if (!folderName || !folderName.trim()) return;
+
+    const name = folderName.trim();
+
+    // Validate folder name - prevent path traversal and invalid characters
+    if (name.includes('/') || name.includes('\\') || name.includes('..') || name.includes('\0')) {
+        alert('Invalid folder name. Cannot contain / \\ .. or null characters.');
+        return;
+    }
+
+    // Build the full path
+    const fullPath = state.currentPath ? `/${state.currentPath}${name}` : `/${name}`;
+
+    try {
+        const response = await fetch(`${API_BASE}/v1/files/directory`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ path: fullPath }),
+        });
+
+        if (response.status === 401) {
+            handleLogout();
+            return;
+        }
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || 'Failed to create folder');
+        }
+
+        console.log(`Created folder: ${fullPath}`);
+        await loadDirectory(state.currentPath);
+
+    } catch (error) {
+        console.error('Create folder error:', error);
+        alert(`Failed to create folder: ${error.message}`);
+    }
+}
+
+// =============================================================================
+// File/Folder Deletion
+// =============================================================================
+
+async function deleteItem(entry) {
+    const itemType = entry.is_folder ? 'folder' : 'file';
+    const confirmed = confirm(`Are you sure you want to delete "${entry.name}"?\n\nThis action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/files/${entry.id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+            },
+        });
+
+        if (response.status === 401) {
+            handleLogout();
+            return;
+        }
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || `Failed to delete ${itemType}`);
+        }
+
+        console.log(`Deleted ${itemType}: ${entry.name}`);
+        await loadDirectory(state.currentPath);
+
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert(`Failed to delete: ${error.message}`);
+    }
+}
+
+// =============================================================================
+// File/Folder Rename
+// =============================================================================
+
+async function renameItem(entry) {
+    const currentName = entry.name;
+    const newName = prompt('Enter new name:', currentName);
+    if (!newName || !newName.trim() || newName.trim() === currentName) return;
+
+    const name = newName.trim();
+
+    // Validate new name
+    if (name.includes('/') || name.includes('\\') || name.includes('..') || name.includes('\0')) {
+        alert('Invalid name. Cannot contain / \\ .. or null characters.');
+        return;
+    }
+
+    // Build the new path
+    const parentPath = state.currentPath ? `/${state.currentPath}` : '/';
+    let newPath = parentPath.endsWith('/') ? parentPath + name : parentPath + '/' + name;
+
+    // Preserve trailing slash for folders
+    if (entry.is_folder && !newPath.endsWith('/')) {
+        newPath += '/';
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/files/${entry.id}`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ path: newPath }),
+        });
+
+        if (response.status === 401) {
+            handleLogout();
+            return;
+        }
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || 'Failed to rename');
+        }
+
+        console.log(`Renamed: ${currentName} -> ${name}`);
+        await loadDirectory(state.currentPath);
+
+    } catch (error) {
+        console.error('Rename error:', error);
+        alert(`Failed to rename: ${error.message}`);
+    }
+}
+
+// =============================================================================
+// WebSocket Real-Time Sync
+// =============================================================================
+
+let ws = null;
+let wsReconnectAttempts = 0;
+const WS_MAX_RECONNECT_ATTEMPTS = 10;
+
+function connectWebSocket() {
+    if (!state.token) return;
+
+    // Build WebSocket URL (same host, API port)
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.hostname}:1975/ws/sync?token=${state.token}`;
+
+    console.log('[WebSocket] Connecting...');
+    updateWsStatus('reconnecting');
+
+    try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            console.log('[WebSocket] Connected');
+            wsReconnectAttempts = 0;
+            updateWsStatus('connected');
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const notification = JSON.parse(event.data);
+                console.log('[WebSocket] Received:', notification);
+
+                if (notification.type === 'file_changed') {
+                    // Check if this change affects the current directory
+                    const changedPath = notification.path || '';
+                    const changedDir = getParentDir(changedPath);
+                    const currentDir = state.currentPath ? `/${state.currentPath}` : '/';
+
+                    // Normalize for comparison
+                    const normalizedChanged = changedDir.replace(/\/+$/, '') || '/';
+                    const normalizedCurrent = currentDir.replace(/\/+$/, '') || '/';
+
+                    if (normalizedChanged === normalizedCurrent ||
+                        changedPath.startsWith(currentDir) ||
+                        notification.action === 'delete') {
+                        // Debounce rapid updates
+                        if (window.wsRefreshTimeout) {
+                            clearTimeout(window.wsRefreshTimeout);
+                        }
+                        window.wsRefreshTimeout = setTimeout(() => {
+                            console.log('[WebSocket] Refreshing directory...');
+                            loadDirectory(state.currentPath);
+                        }, 500);
+                    }
+                }
+            } catch (e) {
+                console.warn('[WebSocket] Failed to parse message:', e);
+            }
+        };
+
+        ws.onerror = (error) => {
+            console.error('[WebSocket] Error:', error);
+        };
+
+        ws.onclose = (event) => {
+            console.log('[WebSocket] Disconnected:', event.code, event.reason);
+            updateWsStatus('disconnected');
+            ws = null;
+
+            // Attempt reconnection with exponential backoff
+            if (state.token && wsReconnectAttempts < WS_MAX_RECONNECT_ATTEMPTS) {
+                wsReconnectAttempts++;
+                const delay = Math.min(Math.pow(2, wsReconnectAttempts - 1) * 1000, 60000);
+                console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${wsReconnectAttempts}/${WS_MAX_RECONNECT_ATTEMPTS})`);
+                updateWsStatus('reconnecting');
+                setTimeout(connectWebSocket, delay);
+            }
+        };
+    } catch (error) {
+        console.error('[WebSocket] Connection failed:', error);
+        updateWsStatus('disconnected');
+    }
+}
+
+function disconnectWebSocket() {
+    if (ws) {
+        ws.close();
+        ws = null;
+    }
+    wsReconnectAttempts = WS_MAX_RECONNECT_ATTEMPTS; // Prevent reconnection
+    updateWsStatus('disconnected');
+}
+
+function getParentDir(path) {
+    if (!path || path === '/') return '/';
+    const trimmed = path.replace(/\/+$/, '');
+    const lastSlash = trimmed.lastIndexOf('/');
+    if (lastSlash <= 0) return '/';
+    return trimmed.substring(0, lastSlash + 1);
+}
+
+function updateWsStatus(status) {
+    const wsStatus = document.getElementById('ws-status');
+    if (!wsStatus) return;
+
+    wsStatus.classList.remove('connected', 'disconnected', 'reconnecting');
+    wsStatus.classList.add(status);
+
+    const titles = {
+        connected: 'Real-time sync: Connected',
+        disconnected: 'Real-time sync: Disconnected',
+        reconnecting: 'Real-time sync: Reconnecting...'
+    };
+    wsStatus.title = titles[status] || 'Real-time sync';
 }
 
 // =============================================================================
