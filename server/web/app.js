@@ -388,29 +388,9 @@ function renderFileList(entries) {
         tdModified.className = 'col-modified';
         tdModified.textContent = formatDate(entry.updated_at);
 
-        // Actions column
+        // Actions column (Download button only for files)
         const tdActions = document.createElement('td');
         tdActions.className = 'col-actions';
-
-        // Rename button (for all items)
-        const renameBtn = document.createElement('button');
-        renameBtn.className = 'btn-rename';
-        renameBtn.textContent = 'Rename';
-        renameBtn.onclick = (e) => {
-            e.stopPropagation();
-            renameItem(entry);
-        };
-        tdActions.appendChild(renameBtn);
-
-        // Delete button (for all items)
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn-delete';
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.onclick = (e) => {
-            e.stopPropagation();
-            deleteItem(entry);
-        };
-        tdActions.appendChild(deleteBtn);
 
         if (!entry.is_folder && entry.version_id) {
             const downloadBtn = document.createElement('button');
@@ -419,6 +399,12 @@ function renderFileList(entries) {
             downloadBtn.onclick = () => downloadFile(entry);
             tdActions.appendChild(downloadBtn);
         }
+
+        // Right-click context menu
+        tr.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showContextMenu(e, entry);
+        });
 
         tr.appendChild(tdName);
         tr.appendChild(tdSize);
@@ -1154,6 +1140,75 @@ function hideUploadProgress(el) {
         el.remove();
     }
 }
+
+// =============================================================================
+// Context Menu
+// =============================================================================
+
+let contextMenuEntry = null;
+
+function showContextMenu(e, entry) {
+    const menu = document.getElementById('context-menu');
+    if (!menu) return;
+
+    contextMenuEntry = entry;
+
+    // Position the menu at click location
+    menu.style.left = e.clientX + 'px';
+    menu.style.top = e.clientY + 'px';
+    menu.hidden = false;
+
+    // Update menu items based on entry type
+    const downloadBtn = document.getElementById('ctx-download');
+    if (downloadBtn) {
+        // Only enable download for files with version_id
+        if (!entry.is_folder && entry.version_id) {
+            downloadBtn.disabled = false;
+        } else {
+            downloadBtn.disabled = true;
+        }
+    }
+
+    // Ensure menu stays within viewport
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+        menu.style.left = (e.clientX - rect.width) + 'px';
+    }
+    if (rect.bottom > window.innerHeight) {
+        menu.style.top = (e.clientY - rect.height) + 'px';
+    }
+}
+
+function hideContextMenu() {
+    const menu = document.getElementById('context-menu');
+    if (menu) {
+        menu.hidden = true;
+    }
+    contextMenuEntry = null;
+}
+
+// Context menu event listeners (set up once)
+document.addEventListener('click', hideContextMenu);
+document.addEventListener('scroll', hideContextMenu);
+window.addEventListener('resize', hideContextMenu);
+
+// Bind context menu actions
+document.getElementById('ctx-rename')?.addEventListener('click', () => {
+    if (contextMenuEntry) renameItem(contextMenuEntry);
+    hideContextMenu();
+});
+
+document.getElementById('ctx-download')?.addEventListener('click', () => {
+    if (contextMenuEntry && !contextMenuEntry.is_folder && contextMenuEntry.version_id) {
+        downloadFile(contextMenuEntry);
+    }
+    hideContextMenu();
+});
+
+document.getElementById('ctx-delete')?.addEventListener('click', () => {
+    if (contextMenuEntry) deleteItem(contextMenuEntry);
+    hideContextMenu();
+});
 
 // =============================================================================
 // New Folder Creation

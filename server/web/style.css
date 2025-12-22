@@ -516,7 +516,8 @@ body {
 }
 
 .ws-status.connected .ws-dot {
-    background-color: #34c759; /* Apple Green */
+    background-color: #34c759;
+    /* Apple Green */
 }
 
 .ws-status.disconnected .ws-dot {
@@ -524,53 +525,86 @@ body {
 }
 
 .ws-status.reconnecting .ws-dot {
-    background-color: #ff9500; /* Apple Orange */
+    background-color: #ff9500;
+    /* Apple Orange */
     animation: pulse 1s ease-in-out infinite;
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
 }
 
-/* Delete Button */
-.btn-delete {
-    font-family: var(--font-sans);
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    color: #ff3b30; /* Apple Red */
-    background-color: rgba(255, 59, 48, 0.1);
+/* Toolbar Icon */
+.toolbar-icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+}
+
+.btn-toolbar:hover .toolbar-icon {
+    filter: brightness(0) invert(1);
+    opacity: 1;
+}
+
+/* Context Menu */
+.context-menu {
+    position: fixed;
+    background-color: var(--color-white);
+    min-width: 160px;
+    border-radius: var(--border-radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--color-border);
+    padding: 4px;
+    z-index: 1000;
+    transform-origin: top left;
+    animation: dropdown-appear 0.1s ease-out;
+}
+
+.context-menu .dropdown-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    background: none;
     border: none;
-    padding: 4px 10px;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    margin-left: 8px;
-}
-
-.btn-delete:hover {
-    background-color: #ff3b30;
-    color: var(--color-white);
-}
-
-/* Rename Button */
-.btn-rename {
     font-family: var(--font-sans);
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    background-color: transparent;
-    border: none;
-    padding: 4px 10px;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    margin-left: 8px;
-}
-
-.btn-rename:hover {
-    background-color: var(--color-bg-subtle);
+    font-size: var(--font-size-sm);
     color: var(--color-text-primary);
+    cursor: pointer;
+    border-radius: var(--border-radius-sm);
+    transition: background-color 0.1s ease;
+}
+
+.context-menu .dropdown-item:hover {
+    background-color: var(--color-bg-subtle);
+    color: var(--color-accent);
+}
+
+.context-menu .dropdown-item.danger {
+    color: #ff3b30;
+}
+
+.context-menu .dropdown-item.danger:hover {
+    background-color: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+}
+
+.context-menu .dropdown-item:disabled {
+    color: var(--color-text-secondary);
+    cursor: default;
+}
+
+.context-menu .dropdown-item:disabled:hover {
+    background-color: transparent;
+    color: var(--color-text-secondary);
 }
 
 .breadcrumb-label {
