@@ -52,6 +52,8 @@ const previewModal = document.getElementById('preview-modal');
 const previewContent = document.getElementById('preview-content');
 const previewClose = document.getElementById('preview-close');
 const previewBackdrop = document.querySelector('.preview-backdrop');
+const contextMenu = document.getElementById('context-menu');
+const fileBrowser = document.querySelector('.file-browser');
 
 // =============================================================================
 // Initialization
@@ -136,6 +138,9 @@ function setupEventListeners() {
 
     // Drag and drop upload
     setupDragAndDrop();
+
+    // Context menu
+    setupContextMenu();
 }
 
 // =============================================================================
@@ -337,6 +342,29 @@ function renderFileList(entries) {
 
     sorted.forEach(entry => {
         const tr = document.createElement('tr');
+        
+        // Store entry data for context menu
+        tr.dataset.entryData = JSON.stringify(entry);
+        
+        // Right-click context menu for file/folder
+        tr.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const entryData = JSON.parse(tr.dataset.entryData);
+            showContextMenu(e.clientX, e.clientY, [
+                {
+                    icon: ICON_RENAME,
+                    label: 'Rename',
+                    action: () => renameItem(entryData)
+                },
+                {
+                    icon: ICON_DELETE,
+                    label: 'Delete',
+                    danger: true,
+                    action: () => deleteItem(entryData)
+                }
+            ]);
+        });
 
         // Name column
         const tdName = document.createElement('td');
@@ -1186,6 +1214,8 @@ async function deleteItem(entry) {
     const confirmed = confirm(`Are you sure you want to delete "${entry.name}"?\n\nThis action cannot be undone.`);
     if (!confirmed) return;
 
+    console.log(`[Delete] Starting delete for ${itemType}: ${entry.name}, id: ${entry.id}`);
+
     try {
         const response = await fetch(`${API_BASE}/files/${entry.id}`, {
             method: 'DELETE',
@@ -1193,6 +1223,8 @@ async function deleteItem(entry) {
                 'Authorization': `Bearer ${state.token}`,
             },
         });
+
+        console.log(`[Delete] Response status: ${response.status}`);
 
         if (response.status === 401) {
             handleLogout();
@@ -1204,11 +1236,13 @@ async function deleteItem(entry) {
             throw new Error(data.message || `Failed to delete ${itemType}`);
         }
 
-        console.log(`Deleted ${itemType}: ${entry.name}`);
+        console.log(`[Delete] Successfully deleted ${itemType}: ${entry.name}`);
+        console.log(`[Delete] Refreshing directory: ${state.currentPath}`);
         await loadDirectory(state.currentPath);
+        console.log(`[Delete] Directory refresh complete`);
 
     } catch (error) {
-        console.error('Delete error:', error);
+        console.error('[Delete] Error:', error);
         alert(`Failed to delete: ${error.message}`);
     }
 }
@@ -1382,6 +1416,112 @@ function updateWsStatus(status) {
         reconnecting: 'Real-time sync: Reconnecting...'
     };
     wsStatus.title = titles[status] || 'Real-time sync';
+}
+
+// =============================================================================
+// Context Menu
+// =============================================================================
+
+let contextMenuTarget = null; // Stores the entry data when right-clicking on a file/folder
+
+// SVG icons for context menu
+const ICON_NEW_FOLDER = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>';
+const ICON_RENAME = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z"/></svg>';
+const ICON_DELETE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>';
+
+function showContextMenu(x, y, items) {
+    // Build menu content
+    contextMenu.innerHTML = '';
+    
+    items.forEach(item => {
+        if (item.separator) {
+            const sep = document.createElement('div');
+            sep.className = 'context-menu-separator';
+            contextMenu.appendChild(sep);
+        } else {
+            const btn = document.createElement('button');
+            btn.className = 'context-menu-item' + (item.danger ? ' danger' : '');
+            btn.innerHTML = item.icon + '<span>' + item.label + '</span>';
+            btn.onclick = async (e) => {
+                e.stopPropagation();
+                hideContextMenu();
+                await item.action();
+            };
+            contextMenu.appendChild(btn);
+        }
+    });
+
+    // Position menu, ensuring it stays within viewport
+    const menuWidth = 160;
+    const menuHeight = items.length * 36 + 8; // Approximate height
+    
+    let posX = x;
+    let posY = y;
+    
+    if (x + menuWidth > window.innerWidth) {
+        posX = window.innerWidth - menuWidth - 8;
+    }
+    if (y + menuHeight > window.innerHeight) {
+        posY = window.innerHeight - menuHeight - 8;
+    }
+
+    contextMenu.style.left = posX + 'px';
+    contextMenu.style.top = posY + 'px';
+    contextMenu.hidden = false;
+}
+
+function hideContextMenu() {
+    contextMenu.hidden = true;
+    contextMenuTarget = null;
+}
+
+function setupContextMenu() {
+    // Close context menu when clicking elsewhere
+    document.addEventListener('click', (e) => {
+        if (!contextMenu.contains(e.target)) {
+            hideContextMenu();
+        }
+    });
+
+    // Close context menu on escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !contextMenu.hidden) {
+            hideContextMenu();
+        }
+    });
+
+    // Close context menu on scroll
+    if (fileBrowser) {
+        fileBrowser.addEventListener('scroll', hideContextMenu);
+    }
+
+    // Right-click on file browser area (blank space)
+    if (fileBrowser) {
+        fileBrowser.addEventListener('contextmenu', (e) => {
+            // Only handle if clicking on blank area (not on a file row)
+            const row = e.target.closest('tr');
+            const isHeader = e.target.closest('thead');
+            
+            if (!row || isHeader) {
+                e.preventDefault();
+                showContextMenu(e.clientX, e.clientY, [
+                    {
+                        icon: ICON_NEW_FOLDER,
+                        label: 'New Folder',
+                        action: createNewFolder
+                    }
+                ]);
+            }
+        });
+    }
+}
+
+function getEntryFromRow(row) {
+    // Extract entry data from the row's data attributes
+    if (row && row.dataset.entryData) {
+        return JSON.parse(row.dataset.entryData);
+    }
+    return null;
 }
 
 // =============================================================================
