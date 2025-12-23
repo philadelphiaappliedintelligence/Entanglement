@@ -1,3 +1,7 @@
+//! Entanglement File Sync Server (tangled)
+
+#![allow(unused_imports)]
+
 use clap::{Parser, Subcommand};
 use std::fs;
 use std::path::PathBuf;

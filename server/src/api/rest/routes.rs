@@ -1,3 +1,7 @@
+//! REST API routes for Entanglement File Sync
+
+#![allow(unused_imports, dead_code)]
+
 use crate::api::AppState;
 use crate::auth;
 use crate::db::{files, users, versions};

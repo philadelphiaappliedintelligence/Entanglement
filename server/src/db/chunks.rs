@@ -1,6 +1,9 @@
 //! Database operations for Content Defined Chunking (CDC)
 //!
 //! Supports BLAKE3 hashing and container-based storage.
+//! Many functions reserved for future delta sync and garbage collection features.
+
+#![allow(dead_code)]
 
 use super::models::{Chunk, NewChunk, VersionChunk};
 use super::DbPool;

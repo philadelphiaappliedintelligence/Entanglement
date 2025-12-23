@@ -1,7 +1,9 @@
 //! Database operations for Blob Containers
 //!
 //! Blob containers are append-only pack files that store multiple chunks
-//! for efficient disk I/O.
+//! for efficient disk I/O. Reserved for future container-based storage.
+
+#![allow(dead_code)]
 
 use super::models::{BlobContainer, NewBlobContainer};
 use super::DbPool;

@@ -1,6 +1,9 @@
 //! Dynamic Chunking Tier System
 //!
 //! Selects optimal FastCDC parameters based on file size and type.
+//! Used by server-side chunking (currently client handles chunking).
+
+#![allow(dead_code)]
 
 use std::path::Path;
 

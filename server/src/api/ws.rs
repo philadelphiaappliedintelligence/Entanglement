@@ -2,6 +2,9 @@
 //!
 //! Provides real-time push notifications to connected clients when files change.
 //! Clients can subscribe to receive updates and trigger FileProvider reimport.
+//! Rate limiter is reserved for future per-user broadcast throttling.
+
+#![allow(dead_code)]
 
 use axum::{
     extract::{

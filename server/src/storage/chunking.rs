@@ -2,6 +2,11 @@
 //!
 //! This module implements content-based file chunking for efficient delta sync.
 //! It supports dynamic tiering based on file size/type.
+//!
+//! Currently unused: Client-side Swift implementation handles chunking.
+//! Preserved for future server-side re-chunking or alternate client support.
+
+#![allow(dead_code)]
 
 use blake3;
 use std::fs::File;

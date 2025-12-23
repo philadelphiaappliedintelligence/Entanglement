@@ -2,6 +2,10 @@
 //!
 //! These structs map directly to the database schema and support
 //! BLAKE3 hashing and Dynamic Chunking Tiers.
+//!
+//! Many structs are reserved for future tiered storage and advanced sync features.
+
+#![allow(dead_code)]
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

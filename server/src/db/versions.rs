@@ -1,3 +1,7 @@
+//! Database operations for file versions with BLAKE3 and tier support.
+
+#![allow(dead_code)]
+
 use super::DbPool;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
