@@ -204,6 +204,8 @@ pub fn v1_routes() -> Router<AppState> {
         .route("/v1/files/directory", post(create_directory_v1))
         // Directory listing with virtual folders (must be before :id to avoid conflicts)
         .route("/v1/files/list", get(list_directory_v1))
+        // Changed since - incremental sync (must be before :id to avoid conflicts)
+        .route("/v1/files/changes", get(get_file_changes))
         // File download - stream file content from chunks (must be before :id)
         .route("/v1/files/:version_id/download", get(download_v1_file))
         // File metadata lookup by ID
@@ -350,6 +352,101 @@ async fn list_directory_v1(
     Ok(Json(ListDirectoryResponse {
         entries: response_entries,
         path: response_path,
+    }))
+}
+
+// =============================================================================
+// Changed Since API (Incremental Sync)
+// =============================================================================
+
+#[derive(Deserialize)]
+struct ChangesQuery {
+    /// ISO8601 datetime - return files changed after this time
+    since: Option<String>,
+    /// Max number of changes to return (default 1000)
+    limit: Option<i64>,
+}
+
+#[derive(Serialize)]
+struct ChangesResponse {
+    /// List of changed files
+    changes: Vec<FileChangeResponse>,
+    /// Current server time (use for next sync)
+    server_time: String,
+}
+
+#[derive(Serialize)]
+struct FileChangeResponse {
+    id: String,
+    path: String,
+    /// "created", "modified", or "deleted"
+    action: String,
+    size_bytes: Option<i64>,
+    blob_hash: Option<String>,
+    is_directory: bool,
+    updated_at: String,
+}
+
+/// Get files changed since a timestamp (for incremental sync)
+/// 
+/// GET /v1/files/changes?since=2024-12-22T00:00:00Z&limit=1000
+///
+/// Returns files created, modified, or deleted since the given timestamp.
+/// If `since` is omitted, returns all files (useful for first sync).
+async fn get_file_changes(
+    State(state): State<AppState>,
+    Query(query): Query<ChangesQuery>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<ChangesResponse>, AppError> {
+    let user_id = extract_user_id(&state, &headers)?;
+    
+    // Parse the since timestamp if provided
+    let cursor = if let Some(since_str) = &query.since {
+        Some(
+            chrono::DateTime::parse_from_rfc3339(since_str)
+                .map_err(|e| AppError::BadRequest(format!("Invalid since timestamp: {}", e)))?
+                .with_timezone(&chrono::Utc)
+        )
+    } else {
+        None
+    };
+    
+    let limit = query.limit.unwrap_or(1000).min(10000); // Cap at 10k
+    
+    // Get changes from database
+    let changes = files::get_changes(&state.db, user_id, cursor, limit).await?;
+    
+    // Convert to response format
+    let response_changes: Vec<FileChangeResponse> = changes
+        .into_iter()
+        .map(|change| {
+            // Determine action based on state
+            let action = if change.is_deleted {
+                "deleted"
+            } else if cursor.is_some() && change.created_at > cursor.unwrap() {
+                "created"
+            } else {
+                "modified"
+            };
+            
+            FileChangeResponse {
+                id: change.id.to_string(),
+                path: change.path.clone(),
+                action: action.to_string(),
+                size_bytes: change.size_bytes,
+                blob_hash: change.blob_hash,
+                is_directory: change.path.ends_with('/'),
+                updated_at: change.updated_at.to_rfc3339(),
+            }
+        })
+        .collect();
+    
+    // Return current server time for use in next sync
+    let server_time = chrono::Utc::now().to_rfc3339();
+    
+    Ok(Json(ChangesResponse {
+        changes: response_changes,
+        server_time,
     }))
 }
 
