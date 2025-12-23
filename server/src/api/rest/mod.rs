@@ -1,4 +1,16 @@
-mod routes;
+//! REST API module
+//!
+//! Organized into domain-specific submodules for maintainability.
+
+mod admin;
+mod auth;
+mod blobs;
+mod chunks;
+mod error;
+mod files;
+mod types;
+mod v1;
+mod versions;
 
 use crate::api::AppState;
 use axum::extract::DefaultBodyLimit;
@@ -7,6 +19,13 @@ use axum::Router;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
+
+// Re-export router functions for external use
+pub use admin::admin_routes;
+pub use auth::auth_routes;
+pub use blobs::metadata_routes;
+pub use files::file_routes;
+pub use v1::v1_routes;
 
 pub async fn serve(addr: SocketAddr, state: AppState) -> anyhow::Result<()> {
     // CORS: Read allowed origins from CORS_ORIGINS env var (comma-separated)
@@ -41,11 +60,11 @@ pub async fn serve(addr: SocketAddr, state: AppState) -> anyhow::Result<()> {
     // Build app WITHOUT rate limiting for now (Docker networking issue)
     // TODO: Re-enable rate limiting with proper key extractor for Docker
     let app = Router::new()
-        .merge(routes::auth_routes())
-        .merge(routes::file_routes())
-        .merge(routes::v1_routes())
-        .merge(routes::metadata_routes())
-        .merge(routes::admin_routes())
+        .merge(auth_routes())
+        .merge(file_routes())
+        .merge(v1_routes())
+        .merge(metadata_routes())
+        .merge(admin_routes())
         .layer(cors)
         .layer(body_limit)
         .layer(TraceLayer::new_for_http())
@@ -56,4 +75,3 @@ pub async fn serve(addr: SocketAddr, state: AppState) -> anyhow::Result<()> {
 
     Ok(())
 }
-
