@@ -505,7 +505,6 @@ async fn download_v1_file(
         
         // Create async stream that yields chunk data in order
         let blob_manager = state.blob_manager.clone();
-        let blob_store = state.blob_store.clone();
         
         let stream = async_stream::stream! {
             for (_vc, chunk) in chunk_list {
@@ -528,7 +527,7 @@ async fn download_v1_file(
                         }
                     },
                     ChunkLocation::Standalone { hash } => {
-                        match blob_store.read(&hash) {
+                        match blob_manager.read_legacy_blob(&hash) {
                             Ok(data) => yield Ok::<_, std::io::Error>(axum::body::Bytes::from(data)),
                             Err(e) => {
                                 tracing::error!("Failed to read standalone chunk {}: {}", hash, e);
@@ -559,15 +558,15 @@ async fn download_v1_file(
         // Legacy/Unchunked file - serve the single blob
         let blob_hash = version.content_hash(); // Use content hash
         
-        if !state.blob_store.exists(blob_hash)? {
+        if !state.blob_manager.legacy_exists(blob_hash)? {
              return Err(AppError::NotFound("Blob not found".into()));
         }
         
-        let blob_store = state.blob_store.clone();
+        let blob_manager = state.blob_manager.clone();
         let hash = blob_hash.to_string();
         
         let stream = async_stream::stream! {
-            match blob_store.read(&hash) {
+            match blob_manager.read_legacy_blob(&hash) {
                 Ok(bytes) => {
                      yield Ok::<_, std::io::Error>(axum::body::Bytes::from(bytes));
                 },

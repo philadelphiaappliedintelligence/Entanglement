@@ -289,6 +289,7 @@ impl BlobManager {
     }
 
     /// Seal the current container (if any) and prepare for shutdown
+    #[allow(dead_code)]
     pub async fn flush(&self) -> Result<()> {
         let mut guard = self.current_container.lock().await;
         if let Some(container) = guard.take() {
@@ -301,8 +302,73 @@ impl BlobManager {
     }
 
     /// Get the base storage path
+    #[allow(dead_code)]
     pub fn base_path(&self) -> &Path {
         &self.base_path
+    }
+
+    // =========================================================================
+    // LEGACY BLOB SUPPORT
+    // These methods provide backwards compatibility with the old BlobStore
+    // 2-char sharded storage format. New code should use write_chunk/read_chunk.
+    // =========================================================================
+
+    /// Get the legacy storage path for a blob hash (sharded by first 2 chars)
+    fn legacy_blob_path(&self, hash: &str) -> Result<PathBuf> {
+        if hash.len() < 4 {
+            return Err(anyhow!("Invalid hash format: {}", hash));
+        }
+        let shard = &hash[..2];
+        // Legacy blobs are stored at base_path/../ (parent of containers dir)
+        let legacy_base = self.base_path.parent()
+            .ok_or_else(|| anyhow!("Cannot get parent of base path"))?;
+        Ok(legacy_base.join(shard).join(hash))
+    }
+
+    /// Check if a legacy blob exists
+    pub fn legacy_exists(&self, hash: &str) -> Result<bool> {
+        let path = self.legacy_blob_path(hash)?;
+        Ok(path.exists())
+    }
+
+    /// Read a legacy blob (old BlobStore format)
+    pub fn read_legacy_blob(&self, hash: &str) -> Result<Vec<u8>> {
+        let path = self.legacy_blob_path(hash)?;
+        
+        if !path.exists() {
+            return Err(anyhow!("Legacy blob not found: {}", hash));
+        }
+        
+        let content = std::fs::read(&path)
+            .with_context(|| format!("Failed to read legacy blob: {}", path.display()))?;
+        
+        tracing::debug!("Read legacy blob {} ({} bytes)", hash, content.len());
+        Ok(content)
+    }
+
+    /// Write a legacy blob (old BlobStore format)
+    /// Used for backwards compatibility with index/export commands
+    pub fn write_legacy_blob(&self, hash: &str, content: &[u8]) -> Result<()> {
+        let path = self.legacy_blob_path(hash)?;
+
+        // Create shard directory if needed
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        // Write atomically using temp file
+        let temp_path = path.with_extension("tmp");
+        {
+            let mut file = std::fs::File::create(&temp_path)?;
+            file.write_all(content)?;
+            file.sync_all()?;
+        }
+
+        // Rename to final path (atomic on most filesystems)
+        std::fs::rename(&temp_path, &path)?;
+
+        tracing::debug!("Wrote legacy blob {} ({} bytes)", hash, content.len());
+        Ok(())
     }
 }
 

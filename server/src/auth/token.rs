@@ -19,6 +19,7 @@ struct Claims {
 }
 
 /// Create an access JWT token for a user (short-lived)
+#[allow(dead_code)]
 pub fn create_token(secret: &str, user_id: Uuid) -> anyhow::Result<String> {
     create_access_token(secret, user_id)
 }

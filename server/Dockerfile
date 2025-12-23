@@ -27,13 +27,11 @@ FROM rustlang/rust:nightly-alpine AS builder
 #   - musl-dev: C compiler for native dependencies
 #   - openssl-dev/openssl-libs-static: TLS support for network libs
 #   - pkgconfig: Locating system libraries during build
-#   - protobuf-dev: gRPC proto compilation
 RUN apk add --no-cache \
     musl-dev \
     openssl-dev \
     openssl-libs-static \
-    pkgconfig \
-    protobuf-dev
+    pkgconfig
 
 WORKDIR /app
 
@@ -60,9 +58,7 @@ RUN cargo build --release --locked 2>/dev/null || true
 # WHY: Now we copy the actual source. Only this layer and below will
 #      rebuild when code changes - dependencies are already cached above.
 COPY src/ src/
-COPY proto/ proto/
 COPY migrations/ migrations/
-COPY build.rs ./
 
 # WHY: Touch main.rs to ensure Cargo sees it as "changed" and rebuilds
 #      (the dummy main.rs had the same mtime as the cached layer)
@@ -92,6 +88,18 @@ RUN apk add --no-cache \
     netcat-openbsd \
     darkhttpd
 
+# =============================================================================
+# SECURITY: Non-Root User
+# =============================================================================
+# WHY: Running as root inside containers is a security anti-pattern.
+#      If the container is compromised, the attacker has root access
+#      to the container filesystem. Using a non-root user limits damage.
+# NOTE: User must be created BEFORE COPY --chown can use it
+RUN addgroup -g 1000 entanglement && \
+    adduser -u 1000 -G entanglement -s /bin/sh -D entanglement && \
+    mkdir -p /data/blobs && \
+    chown -R entanglement:entanglement /data
+
 # WHY: Copy ONLY the compiled binary from builder (not source/dependencies)
 COPY --from=builder /app/target/release/tangled /usr/local/bin/tangled
 
@@ -101,17 +109,6 @@ COPY --chmod=755 entrypoint.sh /entrypoint.sh
 # WHY: Copy web UI files for serving via darkhttpd
 COPY --chown=entanglement:entanglement web /app/web
 
-# =============================================================================
-# SECURITY: Non-Root User
-# =============================================================================
-# WHY: Running as root inside containers is a security anti-pattern.
-#      If the container is compromised, the attacker has root access
-#      to the container filesystem. Using a non-root user limits damage.
-RUN addgroup -g 1000 entanglement && \
-    adduser -u 1000 -G entanglement -s /bin/sh -D entanglement && \
-    mkdir -p /data/blobs && \
-    chown -R entanglement:entanglement /data
-
 # WHY: Switch to non-root user for all subsequent commands and runtime
 USER entanglement
 
@@ -119,9 +116,8 @@ WORKDIR /app
 
 # WHY: Expose the ports the server listens on
 #   - 8080: REST API
-#   - 50051: gRPC API
 #   - 3000: Web UI (served by darkhttpd)
-EXPOSE 8080 50051 3000
+EXPOSE 8080 3000
 
 # WHY: entrypoint.sh handles:
 #   1. JWT_SECRET generation if not provided

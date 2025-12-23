@@ -30,6 +30,7 @@ pub struct FileWithVersion {
     pub original_hash_id: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct FileChange {
     pub id: Uuid,
@@ -181,6 +182,7 @@ pub async fn upsert_file(pool: &DbPool, _user_id: Uuid, path: &str) -> anyhow::R
 
 /// Get a file by ID with ownership check
 /// Returns the file only if the user owns it or if the file has no owner (legacy)
+#[allow(dead_code)]
 pub async fn get_file_by_id(
     pool: &DbPool,
     file_id: Uuid,
@@ -269,6 +271,7 @@ pub async fn get_file_by_id_with_owner(
 }
 
 /// Get a file by path with ownership check
+#[allow(dead_code)]
 pub async fn get_file_by_path(
     pool: &DbPool,
     user_id: Uuid,
@@ -312,6 +315,7 @@ pub async fn set_current_version(
 }
 
 /// Soft delete a file
+#[allow(dead_code)]
 pub async fn soft_delete(pool: &DbPool, file_id: Uuid) -> anyhow::Result<()> {
     sqlx::query(
         r#"
@@ -329,6 +333,7 @@ pub async fn soft_delete(pool: &DbPool, file_id: Uuid) -> anyhow::Result<()> {
 
 /// Soft delete a file and all children (recursive)
 /// Used for directory deletion
+#[allow(dead_code)]
 pub async fn soft_delete_recursive(pool: &DbPool, file_id: Uuid) -> anyhow::Result<()> {
     // 1. Get the file path
     let file = get_file_by_id_global(pool, file_id)

@@ -194,7 +194,7 @@ pub async fn download_chunk(
     }
     
     // Fallback: Try legacy blob store
-    let content = state.blob_store.read(&hash)?;
+    let content = state.blob_manager.read_legacy_blob(&hash)?;
     
     Ok((
         [(header::CONTENT_TYPE, header::HeaderValue::from_static("application/octet-stream"))],

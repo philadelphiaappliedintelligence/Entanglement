@@ -1,10 +1,11 @@
 //! Admin routes
 //!
-//! Server info and statistics endpoints.
+//! Server info, statistics, and health check endpoints.
 
 use crate::api::AppState;
 use axum::{
     extract::State,
+    http::StatusCode,
     routing::get,
     Json, Router,
 };
@@ -20,6 +21,10 @@ pub fn admin_routes() -> Router<AppState> {
     Router::new()
         .route("/admin/stats", get(get_stats))
         .route("/server/info", get(get_server_info))
+        // Health check endpoints for container orchestration
+        .route("/health", get(health_check))
+        .route("/health/ready", get(readiness_check))
+        .route("/health/live", get(liveness_check))
 }
 
 // ============================================================================
@@ -30,7 +35,6 @@ pub fn admin_routes() -> Router<AppState> {
 struct ServerInfo {
     name: String,
     version: String,
-    grpc_port: u16,
 }
 
 #[derive(Serialize)]
@@ -41,6 +45,13 @@ struct StatsResponse {
     total_blob_bytes: i64,
 }
 
+#[derive(Serialize)]
+struct HealthResponse {
+    status: &'static str,
+    version: &'static str,
+    db: &'static str,
+}
+
 // ============================================================================
 // HANDLERS
 // ============================================================================
@@ -49,7 +60,6 @@ async fn get_server_info(State(state): State<AppState>) -> Json<ServerInfo> {
     Json(ServerInfo {
         name: state.config.server_name.clone(),
         version: env!("CARGO_PKG_VERSION").to_string(),
-        grpc_port: state.config.grpc_port,
     })
 }
 
@@ -61,4 +71,38 @@ async fn get_stats(State(state): State<AppState>) -> Result<Json<StatsResponse>,
         total_versions: stats.total_versions,
         total_blob_bytes: stats.total_blob_bytes,
     }))
+}
+
+/// Combined health check - verifies database connectivity
+async fn health_check(State(state): State<AppState>) -> (StatusCode, Json<HealthResponse>) {
+    // Check database connectivity with a simple query
+    let db_status = match sqlx::query("SELECT 1").execute(&state.db).await {
+        Ok(_) => "connected",
+        Err(e) => {
+            tracing::warn!("Health check: database error: {}", e);
+            "disconnected"
+        }
+    };
+    
+    let status = if db_status == "connected" { "healthy" } else { "unhealthy" };
+    let code = if db_status == "connected" { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
+    
+    (code, Json(HealthResponse {
+        status,
+        version: env!("CARGO_PKG_VERSION"),
+        db: db_status,
+    }))
+}
+
+/// Readiness probe - returns 200 if server can accept traffic
+async fn readiness_check(State(state): State<AppState>) -> StatusCode {
+    match sqlx::query("SELECT 1").execute(&state.db).await {
+        Ok(_) => StatusCode::OK,
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE,
+    }
+}
+
+/// Liveness probe - returns 200 if process is running
+async fn liveness_check() -> StatusCode {
+    StatusCode::OK
 }

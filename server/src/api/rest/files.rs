@@ -85,8 +85,8 @@ async fn upload_file(
     let blob_hash = blake3::hash(&content).to_hex().to_string();
     
     // Store blob
-    if !state.blob_store.exists(&blob_hash)? {
-        state.blob_store.write(&blob_hash, &content)?;
+    if !state.blob_manager.legacy_exists(&blob_hash)? {
+        state.blob_manager.write_legacy_blob(&blob_hash, &content)?;
     }
     
     // Upsert file record (shared folder system - no ownership)
@@ -469,7 +469,7 @@ async fn download_file(
         
         // Read and concatenate chunks in order
         for vc in version_chunks {
-            let chunk_data = state.blob_store.read(&vc.chunk_hash)?;
+            let chunk_data = state.blob_manager.read_legacy_blob(&vc.chunk_hash)?;
             reassembled.extend_from_slice(&chunk_data);
         }
         
@@ -478,7 +478,7 @@ async fn download_file(
         // Non-chunked file - read single blob
         let blob_hash = file.blob_hash
             .ok_or_else(|| AppError::NotFound("File has no content".into()))?;
-        state.blob_store.read(&blob_hash)?
+        state.blob_manager.read_legacy_blob(&blob_hash)?
     };
     
     let filename = std::path::Path::new(&file.path)

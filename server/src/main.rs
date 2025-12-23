@@ -249,7 +249,6 @@ fn show_status() -> anyhow::Result<()> {
         println!("tangled running");
         println!("  pid: {}", pid);
         println!("  rest: localhost:{}", config.rest_port);
-        println!("  grpc: localhost:{}", config.grpc_port);
     } else {
         println!("tangled not running");
     }
@@ -277,23 +276,12 @@ async fn run_server(config: Config) -> anyhow::Result<()> {
         }
     }
 
-    // Initialize blob storage (legacy standalone blobs)
-    let blob_store = storage::BlobStore::new(&config.blob_storage_path)?;
-    
-    // Initialize container-based blob manager (new chunked storage)
+    // Initialize container-based blob manager (handles both chunked and legacy storage)
     let containers_path = format!("{}/containers", config.blob_storage_path);
     let blob_manager = storage::BlobManager::new(&containers_path, db_pool.clone())?;
 
     // Create shared application state
-    let app_state = api::AppState::new(db_pool.clone(), blob_store, blob_manager, config.clone());
-
-    // Start gRPC server
-    let grpc_addr = format!("0.0.0.0:{}", config.grpc_port).parse()?;
-    let grpc_state = app_state.clone();
-    let grpc_handle = tokio::spawn(async move {
-        tracing::info!("gRPC listening on {}", grpc_addr);
-        api::grpc::serve(grpc_addr, grpc_state).await
-    });
+    let app_state = api::AppState::new(db_pool.clone(), blob_manager, config.clone());
 
     // Start REST server
     let rest_addr = format!("0.0.0.0:{}", config.rest_port).parse()?;
@@ -303,15 +291,8 @@ async fn run_server(config: Config) -> anyhow::Result<()> {
         api::rest::serve(rest_addr, rest_state).await
     });
 
-    // Wait for both servers
-    tokio::select! {
-        result = grpc_handle => {
-            result??;
-        }
-        result = rest_handle => {
-            result??;
-        }
-    }
+    // Wait for REST server
+    rest_handle.await??;
 
     // Cleanup PID file
     let _ = fs::remove_file(pid_file());
@@ -430,7 +411,8 @@ async fn index_folder(config: &Config, path: &str) -> anyhow::Result<()> {
     use std::io::Read;
     
     let pool = db::create_pool(&config.database_url).await?;
-    let blob_store = storage::BlobStore::new(&config.blob_storage_path)?;
+    let containers_path = format!("{}/containers", config.blob_storage_path);
+    let blob_manager = storage::BlobManager::new(&containers_path, pool.clone())?;
     
     let base_path = std::path::Path::new(path);
     if !base_path.exists() {
@@ -468,9 +450,9 @@ async fn index_folder(config: &Config, path: &str) -> anyhow::Result<()> {
         
         let blob_hash = blake3::hash(&content).to_hex().to_string();
         
-        // Store blob if not exists
-        if !blob_store.exists(&blob_hash)? {
-            blob_store.write(&blob_hash, &content)?;
+        // Store blob if not exists (using legacy format for compatibility)
+        if !blob_manager.legacy_exists(&blob_hash)? {
+            blob_manager.write_legacy_blob(&blob_hash, &content)?;
         }
         
         // Create file record (no user ownership)
@@ -498,7 +480,8 @@ async fn index_folder(config: &Config, path: &str) -> anyhow::Result<()> {
 /// Export all files from blob storage to plain files (emergency recovery)
 async fn export_files(config: &Config, output_path: &str) -> anyhow::Result<()> {
     let pool = db::create_pool(&config.database_url).await?;
-    let blob_store = storage::BlobStore::new(&config.blob_storage_path)?;
+    let containers_path = format!("{}/containers", config.blob_storage_path);
+    let blob_manager = storage::BlobManager::new(&containers_path, pool.clone())?;
     
     let output_dir = std::path::Path::new(output_path);
     let current_dir = output_dir.join("current");
@@ -531,7 +514,7 @@ async fn export_files(config: &Config, output_path: &str) -> anyhow::Result<()> 
     // Helper function to read file content (handles both chunked and non-chunked)
     async fn read_file_content(
         pool: &db::DbPool,
-        blob_store: &storage::BlobStore,
+        blob_manager: &storage::BlobManager,
         version_id: uuid::Uuid,
         blob_hash: &str,
         is_chunked: bool,
@@ -541,13 +524,13 @@ async fn export_files(config: &Config, output_path: &str) -> anyhow::Result<()> 
             let version_chunks = db::chunks::get_version_chunks(pool, version_id).await?;
             let mut content = Vec::new();
             for vc in version_chunks {
-                let chunk_data = blob_store.read(&vc.chunk_hash)?;
+                let chunk_data = blob_manager.read_legacy_blob(&vc.chunk_hash)?;
                 content.extend_from_slice(&chunk_data);
             }
             Ok(content)
         } else {
             // Read single blob
-            Ok(blob_store.read(blob_hash)?)
+            Ok(blob_manager.read_legacy_blob(blob_hash)?)
         }
     }
     
@@ -569,7 +552,7 @@ async fn export_files(config: &Config, output_path: &str) -> anyhow::Result<()> 
             fs::create_dir_all(parent)?;
         }
         
-        match read_file_content(&pool, &blob_store, version_id, blob_hash, *is_chunked).await {
+        match read_file_content(&pool, &blob_manager, version_id, blob_hash, *is_chunked).await {
             Ok(content) => {
                 fs::write(&file_path, content)?;
                 let chunked_marker = if *is_chunked { " (chunked)" } else { "" };
@@ -602,7 +585,7 @@ async fn export_files(config: &Config, output_path: &str) -> anyhow::Result<()> 
             fs::create_dir_all(parent)?;
         }
         
-        match read_file_content(&pool, &blob_store, version_id, blob_hash, *is_chunked).await {
+        match read_file_content(&pool, &blob_manager, version_id, blob_hash, *is_chunked).await {
             Ok(content) => {
                 fs::write(&file_path, content)?;
                 let chunked_marker = if *is_chunked { " (chunked)" } else { "" };

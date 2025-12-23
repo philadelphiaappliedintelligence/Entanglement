@@ -67,8 +67,8 @@ pub async fn upload_blob(
     }
     
     // Store blob if not exists (deduplication)
-    if !state.blob_store.exists(&hash)? {
-        state.blob_store.write(&hash, &body)?;
+    if !state.blob_manager.legacy_exists(&hash)? {
+        state.blob_manager.write_legacy_blob(&hash, &body)?;
     }
     
     Ok(StatusCode::CREATED)
@@ -82,11 +82,11 @@ pub async fn download_blob(
 ) -> Result<impl IntoResponse, AppError> {
     let _user_id = extract_user_id(&state, &headers)?;
     
-    if !state.blob_store.exists(&hash)? {
+    if !state.blob_manager.legacy_exists(&hash)? {
         return Err(AppError::NotFound("Blob not found".into()));
     }
     
-    let content = state.blob_store.read(&hash)?;
+    let content = state.blob_manager.read_legacy_blob(&hash)?;
     
     Ok((
         StatusCode::OK,
@@ -106,7 +106,7 @@ async fn create_file_metadata(
     validate_path(&req.path)?;
     
     // Verify blob exists
-    if !state.blob_store.exists(&req.blob_hash)? {
+    if !state.blob_manager.legacy_exists(&req.blob_hash)? {
         return Err(AppError::BadRequest("Blob not found - upload blob first".into()));
     }
     

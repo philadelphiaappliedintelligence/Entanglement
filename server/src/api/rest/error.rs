@@ -4,7 +4,6 @@
 
 use crate::api::AppState;
 use crate::auth;
-use crate::storage::blob::BlobError;
 use axum::{
     http::{header, StatusCode},
     response::IntoResponse,
@@ -52,25 +51,6 @@ impl From<sqlx::Error> for AppError {
         // This prevents leaking database schema/query information
         tracing::error!("Database error: {}", err);
         AppError::Internal("An internal error occurred".to_string())
-    }
-}
-
-impl From<BlobError> for AppError {
-    fn from(err: BlobError) -> Self {
-        tracing::error!("Storage error: {}", err);
-        match err {
-            BlobError::NotFound(hash) => {
-                // Blob not found is a 404, not 500 - helps client understand what's missing
-                AppError::NotFound(format!("Blob not found: {}", hash))
-            }
-            BlobError::InvalidHash(hash) => {
-                AppError::BadRequest(format!("Invalid blob hash: {}", hash))
-            }
-            BlobError::Io(_) => {
-                // SECURITY: Don't expose IO details to client
-                AppError::Internal("Storage error".to_string())
-            }
-        }
     }
 }
 
@@ -131,6 +111,7 @@ pub fn validate_path(path: &str) -> Result<(), AppError> {
 /// Get the parent directory path for a file path
 /// e.g., "/documents/file.txt" -> "/documents/"
 /// e.g., "/file.txt" -> "/"
+#[allow(dead_code)]
 pub fn get_parent_path(path: &str) -> String {
     if path.is_empty() || path == "/" {
         return "/".to_string();

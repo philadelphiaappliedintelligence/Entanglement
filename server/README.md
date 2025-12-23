@@ -18,8 +18,7 @@ docker compose logs -f server
 ```
 
 The server will be available at:
-- **REST API**: http://localhost:8080
-- **gRPC**: localhost:50051
+- **REST API**: http://localhost:1975
 
 ## Configuration
 
@@ -33,6 +32,7 @@ cp .env.example .env
 |----------|----------|-------------|
 | `JWT_SECRET` | **Yes** (prod) | Secret key for JWT tokens |
 | `SERVER_NAME` | No | Display name for your server |
+| `REST_PORT` | No | API port (default: 1975) |
 
 ## API Endpoints
 
@@ -43,6 +43,9 @@ cp .env.example .env
 | `/server/info` | GET | Server info |
 | `/v1/files/list` | GET | List directory |
 | `/files/{id}` | GET/DELETE | Get or delete file |
+| `/health` | GET | Health check (with DB status) |
+| `/health/ready` | GET | Readiness probe |
+| `/health/live` | GET | Liveness probe |
 
 ## Development
 
@@ -66,3 +69,4 @@ To backup:
 docker compose down
 docker run --rm -v server_entanglement_data:/data -v $(pwd):/backup alpine tar czf /backup/data-backup.tar.gz /data
 ```
+

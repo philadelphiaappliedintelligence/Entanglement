@@ -112,7 +112,6 @@ fi
 
 echo "[entrypoint] 🚀 Starting Entanglement server..."
 echo "[entrypoint] REST API: http://0.0.0.0:${REST_PORT:-1975}"
-echo "[entrypoint] gRPC API: http://0.0.0.0:${GRPC_PORT:-50051}"
 echo "[entrypoint] Web UI:   http://0.0.0.0:${WEB_PORT:-3000}"
 
 # =============================================================================

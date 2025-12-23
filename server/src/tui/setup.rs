@@ -676,7 +676,6 @@ fn ui(f: &mut Frame, app: &App) {
             lines.push(Line::from("  tangled serve"));
             lines.push(Line::from(""));
             lines.push(Line::from(format!("rest: localhost:{}", app.config.rest_port)));
-            lines.push(Line::from(format!("grpc: localhost:{}", app.config.grpc_port)));
             lines.push(Line::from(""));
             lines.push(Line::from("[enter] exit"));
         }

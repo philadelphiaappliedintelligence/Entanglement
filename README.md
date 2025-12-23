@@ -25,7 +25,6 @@ docker compose logs -f server
 The server will be available at:
 - **Web UI:** http://localhost:3000
 - **REST API:** http://localhost:1975
-- **gRPC:** localhost:50051
 
 ## Configuration
 
@@ -36,7 +35,6 @@ The server will be available at:
 | `JWT_SECRET` | **Yes** (production) | Auto-generated | Secret for signing JWT tokens. Generate with `openssl rand -hex 32` |
 | `POSTGRES_PASSWORD` | No | `entanglement` | Database password |
 | `REST_PORT` | No | `1975` | REST API port |
-| `GRPC_PORT` | No | `50051` | gRPC port |
 | `WEB_PORT` | No | `3000` | Web UI port |
 
 > ⚠️ **Security Note:** If `JWT_SECRET` is not set, a random secret is generated on each container restart, logging out all users. Set a persistent secret in `.env` for production.
@@ -62,6 +60,20 @@ cargo run -- serve
 ### Client (macOS)
 
 Open `client/macos/Entanglement/Entanglement.xcodeproj` in Xcode and build.
+
+### CLI Client (Linux/Cross-Platform)
+
+For Linux servers or headless environments:
+
+```bash
+cd client/cli
+cargo build --release
+./target/release/tangle setup   # Interactive wizard
+./target/release/tangle start   # Start sync daemon
+./target/release/tangle status  # Check sync status
+```
+
+Available commands: `setup`, `start`, `stop`, `status`, `ls`, `history`, `logout`
 
 ## Security
 
