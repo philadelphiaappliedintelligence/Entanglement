@@ -29,7 +29,7 @@ enum Screen {
     RunningMigrations,
     MigrationsComplete,
     MigrationsError(String),
-    EnterEmail,
+    EnterUsername,
     EnterPassword,
     ConfirmPassword,
     CreatingUser,
@@ -44,11 +44,12 @@ struct App {
     screen: Screen,
     config: Config,
     server_name_input: String,
-    email_input: String,
+    username_input: String,
     password_input: String,
     password_confirm: String,
     error_message: Option<String>,
     db_pool: Option<db::DbPool>,
+    is_first_user: bool,
 }
 
 impl App {
@@ -58,11 +59,12 @@ impl App {
             screen: Screen::Welcome,
             config,
             server_name_input,
-            email_input: String::new(),
+            username_input: String::new(),
             password_input: String::new(),
             password_confirm: String::new(),
             error_message: None,
             db_pool: None,
+            is_first_user: true,
         }
     }
 }
@@ -317,8 +319,13 @@ async fn run_app(
                 if let Some(pool) = &app.db_pool {
                     match auth::hash_password(&app.password_input) {
                         Ok(hash) => {
-                            match db::users::create_user(pool, &app.email_input, &hash).await {
-                                Ok(user) => app.screen = Screen::UserCreated(user.id.to_string()),
+                            // First user is always admin
+                            let is_admin = app.is_first_user;
+                            match db::users::create_user(pool, &app.username_input, &hash, is_admin).await {
+                                Ok(user) => {
+                                    app.is_first_user = false;
+                                    app.screen = Screen::UserCreated(user.id.to_string());
+                                }
                                 Err(e) => app.screen = Screen::UserError(e.to_string()),
                             }
                         }
@@ -386,7 +393,7 @@ async fn run_app(
                     }
                     Screen::MigrationsComplete => {
                         if key.code == KeyCode::Enter {
-                            app.screen = Screen::EnterEmail;
+                            app.screen = Screen::EnterUsername;
                         }
                     }
                     Screen::MigrationsError(_) => match key.code {
@@ -394,20 +401,20 @@ async fn run_app(
                             app.screen = Screen::RunningMigrations;
                         }
                         KeyCode::Char('s') => {
-                            app.screen = Screen::EnterEmail;
+                            app.screen = Screen::EnterUsername;
                         }
                         _ => {}
                     }
-                    Screen::EnterEmail => {
+                    Screen::EnterUsername => {
                         app.error_message = None;
                         match key.code {
-                            KeyCode::Char(c) => app.email_input.push(c),
-                            KeyCode::Backspace => { app.email_input.pop(); }
+                            KeyCode::Char(c) => app.username_input.push(c),
+                            KeyCode::Backspace => { app.username_input.pop(); }
                             KeyCode::Enter => {
-                                if app.email_input.is_empty() {
-                                    app.error_message = Some("email required".to_string());
-                                } else if !app.email_input.contains('@') {
-                                    app.error_message = Some("invalid email".to_string());
+                                if app.username_input.len() < 3 {
+                                    app.error_message = Some("min 3 characters".to_string());
+                                } else if !app.username_input.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+                                    app.error_message = Some("letters, numbers, _ or - only".to_string());
                                 } else {
                                     app.screen = Screen::EnterPassword;
                                 }
@@ -455,17 +462,17 @@ async fn run_app(
                         KeyCode::Char('r') => {
                             app.password_input.clear();
                             app.password_confirm.clear();
-                            app.screen = Screen::EnterEmail;
+                            app.screen = Screen::EnterUsername;
                         }
                         KeyCode::Enter => app.screen = Screen::Complete,
                         _ => {}
                     },
                     Screen::AnotherUser => match key.code {
                         KeyCode::Char('y') => {
-                            app.email_input.clear();
+                            app.username_input.clear();
                             app.password_input.clear();
                             app.password_confirm.clear();
-                            app.screen = Screen::EnterEmail;
+                            app.screen = Screen::EnterUsername;
                         }
                         KeyCode::Char('n') | KeyCode::Enter => {
                             app.screen = Screen::Complete;
@@ -592,14 +599,14 @@ fn ui(f: &mut Frame, app: &App) {
             lines.push(Line::from(""));
             lines.push(Line::from("[r] retry  [s] skip  [esc] quit"));
         }
-        Screen::EnterEmail => {
+        Screen::EnterUsername => {
             lines.push(Line::from(format!("* {}", app.config.server_name)));
             lines.push(Line::from("* database ready"));
             lines.push(Line::from("* migrations complete"));
             lines.push(Line::from(""));
             lines.push(Line::from("create user"));
             lines.push(Line::from(""));
-            lines.push(Line::from(format!("> email: {}_", app.email_input)));
+            lines.push(Line::from(format!("> username: {}_", app.username_input)));
             if let Some(err) = &app.error_message {
                 lines.push(Line::from(format!("  ! {}", err)));
             }
@@ -611,7 +618,7 @@ fn ui(f: &mut Frame, app: &App) {
             lines.push(Line::from(""));
             lines.push(Line::from("create user"));
             lines.push(Line::from(""));
-            lines.push(Line::from(format!("  email: {}", app.email_input)));
+            lines.push(Line::from(format!("  username: {}", app.username_input)));
             lines.push(Line::from(format!("> password: {}_", "*".repeat(app.password_input.len()))));
             if let Some(err) = &app.error_message {
                 lines.push(Line::from(format!("  ! {}", err)));
@@ -624,7 +631,7 @@ fn ui(f: &mut Frame, app: &App) {
             lines.push(Line::from(""));
             lines.push(Line::from("create user"));
             lines.push(Line::from(""));
-            lines.push(Line::from(format!("  email: {}", app.email_input)));
+            lines.push(Line::from(format!("  username: {}", app.username_input)));
             lines.push(Line::from(format!("  password: {}", "*".repeat(app.password_input.len()))));
             lines.push(Line::from(format!("> confirm: {}_", "*".repeat(app.password_confirm.len()))));
             if let Some(err) = &app.error_message {

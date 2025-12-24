@@ -22,8 +22,8 @@
             </header>
             <form id="login-form" autocomplete="off">
                 <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" name="email" required autofocus>
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required autofocus autocapitalize="none">
                 </div>
                 <div class="form-group">
                     <label for="password">Password</label>
@@ -31,7 +31,6 @@
                 </div>
                 <div id="login-error" class="error-message" hidden></div>
                 <button type="submit" class="btn-primary">Sign In</button>
-                <a href="#" id="forgot-password-link" class="forgot-password-link">Forgot password?</a>
             </form>
             <footer class="login-footer">
                 <span class="status-indicator"></span>
@@ -56,11 +55,9 @@
                                 d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
                             </path>
                         </svg>
-                        <span id="settings-badge" class="settings-badge" hidden></span>
                     </button>
                     <div id="user-dropdown" class="user-dropdown" hidden>
-                        <div class="dropdown-header" id="user-email"></div>
-                        <button id="verify-email-btn" class="dropdown-item verify-email-btn" hidden>Verify Email</button>
+                        <div class="dropdown-header" id="user-name"></div>
                         <div class="dropdown-toggle">
                             <span>Dark Mode</span>
                             <div id="theme-toggle" class="toggle-switch"></div>
@@ -180,7 +177,9 @@
                         <div class="custom-select" id="share-expiry-select">
                             <button type="button" class="custom-select-trigger" id="share-expiry-trigger">
                                 <span class="custom-select-value">Never</span>
-                                <svg class="custom-select-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <svg class="custom-select-arrow" xmlns="http://www.w3.org/2000/svg" width="12"
+                                    height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
                                     <polyline points="6 9 12 15 18 9"></polyline>
                                 </svg>
                             </button>
@@ -228,7 +227,8 @@
                     <h3>General</h3>
                     <div class="form-group">
                         <label for="public-url-setting">Public URL</label>
-                        <p class="settings-description">Base URL used for share links. Leave empty to use the current origin.</p>
+                        <p class="settings-description">Base URL used for share links. Leave empty to use the current
+                            origin.</p>
                         <div class="input-with-button">
                             <input type="text" id="public-url-setting" placeholder="https://files.example.com">
                             <button id="save-public-url-btn" class="btn-small">Save</button>

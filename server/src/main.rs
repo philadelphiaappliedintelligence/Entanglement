@@ -68,11 +68,12 @@ enum Commands {
 enum UserCommands {
     /// Create a new user
     Create {
-        /// User email address
+        /// Username
         #[arg(long)]
-        email: String,
-        // SECURITY: Password is always prompted interactively
-        // Never accept passwords via command line (visible in process list)
+        username: String,
+        /// Make user an admin
+        #[arg(long)]
+        admin: bool,
     },
     /// List all users
     List,
@@ -169,8 +170,8 @@ async fn main() -> anyhow::Result<()> {
             reset_database(&config, force).await?;
         }
         Commands::User { command } => match command {
-            UserCommands::Create { email } => {
-                create_user(&config, &email).await?;
+            UserCommands::Create { username, admin } => {
+                create_user(&config, &username, admin).await?;
             }
             UserCommands::List => {
                 list_users(&config).await?;
@@ -308,12 +309,18 @@ async fn run_migrations(config: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn create_user(config: &Config, email: &str) -> anyhow::Result<()> {
+async fn create_user(config: &Config, username: &str, is_admin: bool) -> anyhow::Result<()> {
     use std::io::{self, Write};
     
+    // Validate username
+    if username.len() < 3 {
+        anyhow::bail!("Username must be at least 3 characters");
+    }
+    if !username.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        anyhow::bail!("Username can only contain letters, numbers, underscores, and hyphens");
+    }
+    
     // SECURITY: Always prompt for password interactively
-    // Never accept passwords via command line (visible in process list)
-    // Use spawn_blocking because rpassword does blocking I/O
     print!("Password: ");
     io::stdout().flush()?;
     
@@ -334,14 +341,12 @@ async fn create_user(config: &Config, email: &str) -> anyhow::Result<()> {
         anyhow::bail!("Passwords do not match");
     }
     
-    // Validate password strength
-    if password.len() < 8 {
-        anyhow::bail!("Password must be at least 8 characters");
+    if password.len() < 4 {
+        anyhow::bail!("Password must be at least 4 characters");
     }
 
     println!("Connecting to database...");
     
-    // Add timeout to database connection
     let pool = tokio::time::timeout(
         std::time::Duration::from_secs(10),
         db::create_pool(&config.database_url)
@@ -352,9 +357,9 @@ async fn create_user(config: &Config, email: &str) -> anyhow::Result<()> {
     let password_hash = auth::hash_password(&password)?;
     
     println!("Creating user in database...");
-    let user = db::users::create_user(&pool, email, &password_hash).await?;
+    let user = db::users::create_user(&pool, username, &password_hash, is_admin).await?;
 
-    println!("User created: {}", user.id);
+    println!("User created: {} (admin: {})", user.id, user.is_admin);
 
     Ok(())
 }
@@ -367,7 +372,8 @@ async fn list_users(config: &Config) -> anyhow::Result<()> {
         println!("no users");
     } else {
         for user in users {
-            println!("{} - {}", user.id, user.email);
+            let role = if user.is_admin { "admin" } else { "user" };
+            println!("{} - {} ({})", user.id, user.username, role);
         }
     }
 

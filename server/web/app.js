@@ -26,7 +26,8 @@ function isVideoFile(filename) {
 // State
 let state = {
     token: localStorage.getItem('entanglement_token'),
-    userEmail: localStorage.getItem('entanglement_email'),
+    username: localStorage.getItem('entanglement_username'),
+    isAdmin: localStorage.getItem('entanglement_is_admin') === 'true',
     currentPath: '',
     serverName: 'Entanglement', // Default fallback
 };
@@ -45,7 +46,7 @@ const loginForm = document.getElementById('login-form');
 const loginError = document.getElementById('login-error');
 const serverStatus = document.getElementById('server-status');
 const statusIndicator = document.querySelector('.status-indicator');
-const userEmailEl = document.getElementById('user-email');
+const userNameEl = document.getElementById('user-name');
 const logoutBtn = document.getElementById('logout-btn');
 const breadcrumb = document.getElementById('breadcrumb');
 const fileList = document.getElementById('file-list');
@@ -181,7 +182,7 @@ async function checkServerStatus() {
 async function handleLogin(e) {
     e.preventDefault();
 
-    const email = document.getElementById('email').value;
+    const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
     const submitBtn = loginForm.querySelector('button[type="submit"]');
 
@@ -193,7 +194,7 @@ async function handleLogin(e) {
         const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify({ username, password }),
         });
 
         if (!response.ok) {
@@ -204,10 +205,12 @@ async function handleLogin(e) {
         const data = await response.json();
 
         state.token = data.token;
-        state.userEmail = email;
+        state.username = data.username;
+        state.isAdmin = data.is_admin;
 
         localStorage.setItem('entanglement_token', data.token);
-        localStorage.setItem('entanglement_email', email);
+        localStorage.setItem('entanglement_username', data.username);
+        localStorage.setItem('entanglement_is_admin', data.is_admin ? 'true' : 'false');
 
         showBrowser();
         await loadDirectory('');
@@ -226,12 +229,14 @@ function handleLogout() {
     disconnectWebSocket();
 
     state.token = null;
-    state.userEmail = null;
+    state.username = null;
+    state.isAdmin = false;
     state.currentPath = '';
-    state.serverName = 'Entanglement'; // Reset server name logic if needed, but keeping it is fine
+    state.serverName = 'Entanglement';
 
     localStorage.removeItem('entanglement_token');
-    localStorage.removeItem('entanglement_email');
+    localStorage.removeItem('entanglement_username');
+    localStorage.removeItem('entanglement_is_admin');
 
     showLogin();
 }
@@ -250,7 +255,7 @@ function showLogin() {
 function showBrowser() {
     loginView.hidden = true;
     browserView.hidden = false;
-    userEmailEl.textContent = state.userEmail;
+    if (userNameEl) userNameEl.textContent = state.username || 'User';
     // Connect to WebSocket for real-time sync
     connectWebSocket();
 }
