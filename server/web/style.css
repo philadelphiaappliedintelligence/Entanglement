@@ -1820,3 +1820,89 @@ body {
     font-variant-numeric: tabular-nums;
     font-weight: 500;
 }
+
+/* =============================================================================
+   Admin Modal
+   ============================================================================= */
+
+.admin-toolbar {
+    margin-bottom: 16px;
+}
+
+.admin-table {
+    width: 100%;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.role-admin {
+    background: rgba(0, 102, 204, 0.15);
+    color: var(--color-accent);
+}
+
+.role-user {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+}
+
+.action-cell {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-xs {
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
+.checkbox-row label {
+    margin-bottom: 0;
+}
+
+.modal-sm {
+    max-width: 380px;
+}
+
+.error-message {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}

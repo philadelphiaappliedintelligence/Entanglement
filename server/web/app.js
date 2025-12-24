@@ -1638,6 +1638,57 @@ function setupModals() {
         console.error('[Modals] Could not find sync settings button or modal');
     }
 
+    // Setup admin button (only visible if admin)
+    const adminBtn = document.getElementById('admin-btn');
+    const adminModal = document.getElementById('admin-modal');
+    if (adminBtn && adminModal) {
+        adminBtn.addEventListener('click', () => {
+            if (userDropdown) userDropdown.hidden = true;
+            loadAdminUsers();
+            adminModal.hidden = false;
+        });
+    }
+
+    // Create user modal
+    const createUserBtn = document.getElementById('create-user-btn');
+    const createUserModal = document.getElementById('create-user-modal');
+    const createUserForm = document.getElementById('create-user-form');
+    const cancelCreateUser = document.getElementById('cancel-create-user');
+
+    if (createUserBtn && createUserModal) {
+        createUserBtn.addEventListener('click', () => {
+            document.getElementById('create-user-error').hidden = true;
+            createUserForm.reset();
+            createUserModal.hidden = false;
+            document.getElementById('new-username').focus();
+        });
+    }
+
+    if (cancelCreateUser) {
+        cancelCreateUser.addEventListener('click', () => {
+            createUserModal.hidden = true;
+        });
+    }
+
+    if (createUserForm) {
+        createUserForm.addEventListener('submit', handleCreateUser);
+    }
+
+    // Reset password modal
+    const resetPasswordForm = document.getElementById('reset-password-form');
+    const cancelResetPassword = document.getElementById('cancel-reset-password');
+    const resetPasswordModal = document.getElementById('reset-password-modal');
+
+    if (cancelResetPassword) {
+        cancelResetPassword.addEventListener('click', () => {
+            resetPasswordModal.hidden = true;
+        });
+    }
+
+    if (resetPasswordForm) {
+        resetPasswordForm.addEventListener('submit', handleResetPassword);
+    }
+
     // Setup share button
     const createShareBtn = document.getElementById('create-share-btn');
     if (createShareBtn) {
@@ -2297,8 +2348,169 @@ if (verifyEmailBtn) {
 const originalShowBrowser = showBrowser;
 showBrowser = function () {
     originalShowBrowser();
-    checkEmailVerificationStatus();
+    // Show admin button if user is admin
+    const adminBtn = document.getElementById('admin-btn');
+    if (adminBtn && state.isAdmin) {
+        adminBtn.hidden = false;
+    }
 };
+
+// =============================================================================
+// Admin Management
+// =============================================================================
+
+async function loadAdminUsers() {
+    const userList = document.getElementById('admin-user-list');
+    const errorEl = document.getElementById('admin-error');
+    errorEl.hidden = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/admin/users`, {
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || 'Failed to load users');
+        }
+
+        const users = await response.json();
+        renderAdminUsers(users);
+    } catch (error) {
+        errorEl.textContent = error.message;
+        errorEl.hidden = false;
+        userList.innerHTML = '<tr><td colspan="4" class="empty-state">Failed to load users</td></tr>';
+    }
+}
+
+function renderAdminUsers(users) {
+    const userList = document.getElementById('admin-user-list');
+
+    if (users.length === 0) {
+        userList.innerHTML = '<tr><td colspan="4" class="empty-state">No users found</td></tr>';
+        return;
+    }
+
+    userList.innerHTML = users.map(user => {
+        const role = user.is_admin ? 'Admin' : 'User';
+        const roleClass = user.is_admin ? 'role-admin' : 'role-user';
+        const created = new Date(user.created_at).toLocaleDateString();
+
+        return `
+            <tr>
+                <td><strong>${escapeHtml(user.username)}</strong></td>
+                <td><span class="role-badge ${roleClass}">${role}</span></td>
+                <td>${created}</td>
+                <td class="action-cell">
+                    <button class="btn-secondary btn-xs" onclick="showResetPasswordModal('${user.id}', '${escapeHtml(user.username)}')">Reset Password</button>
+                    <button class="btn-danger btn-xs" onclick="deleteUser('${user.id}', '${escapeHtml(user.username)}')">Delete</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function handleCreateUser(e) {
+    e.preventDefault();
+    const errorEl = document.getElementById('create-user-error');
+    errorEl.hidden = true;
+
+    const username = document.getElementById('new-username').value;
+    const password = document.getElementById('new-password').value;
+    const isAdmin = document.getElementById('new-is-admin').checked;
+
+    try {
+        const response = await fetch(`${API_BASE}/admin/users`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.token}`
+            },
+            body: JSON.stringify({ username, password, is_admin: isAdmin })
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || 'Failed to create user');
+        }
+
+        document.getElementById('create-user-modal').hidden = true;
+        loadAdminUsers();
+    } catch (error) {
+        errorEl.textContent = error.message;
+        errorEl.hidden = false;
+    }
+}
+
+async function deleteUser(userId, username) {
+    if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+
+    const errorEl = document.getElementById('admin-error');
+    errorEl.hidden = true;
+
+    try {
+        const response = await fetch(`${API_BASE}/admin/users/${userId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || 'Failed to delete user');
+        }
+
+        loadAdminUsers();
+    } catch (error) {
+        errorEl.textContent = error.message;
+        errorEl.hidden = false;
+    }
+}
+
+function showResetPasswordModal(userId, username) {
+    document.getElementById('reset-user-id').value = userId;
+    document.getElementById('reset-username-display').textContent = username;
+    document.getElementById('reset-new-password').value = '';
+    document.getElementById('reset-password-error').hidden = true;
+    document.getElementById('reset-password-modal').hidden = false;
+    document.getElementById('reset-new-password').focus();
+}
+
+async function handleResetPassword(e) {
+    e.preventDefault();
+    const errorEl = document.getElementById('reset-password-error');
+    errorEl.hidden = true;
+
+    const userId = document.getElementById('reset-user-id').value;
+    const newPassword = document.getElementById('reset-new-password').value;
+
+    try {
+        const response = await fetch(`${API_BASE}/admin/users/${userId}/password`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.token}`
+            },
+            body: JSON.stringify({ new_password: newPassword })
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || 'Failed to reset password');
+        }
+
+        document.getElementById('reset-password-modal').hidden = true;
+        alert('Password updated successfully');
+    } catch (error) {
+        errorEl.textContent = error.message;
+        errorEl.hidden = false;
+    }
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
 
 // =============================================================================
 // Start

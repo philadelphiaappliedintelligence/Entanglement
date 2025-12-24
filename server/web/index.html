@@ -65,6 +65,7 @@
                         <div class="dropdown-separator"></div>
                         <button id="conflicts-btn" class="dropdown-item">Sync Conflicts</button>
                         <button id="sync-settings-btn" class="dropdown-item">Settings</button>
+                        <button id="admin-btn" class="dropdown-item" hidden>User Management</button>
                         <div class="dropdown-separator"></div>
                         <button id="logout-btn" class="dropdown-item">Log Out</button>
                     </div>
@@ -257,6 +258,96 @@
                         <!-- Devices populated by JavaScript -->
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Modal -->
+    <div id="admin-modal" class="modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="modal-container modal-lg">
+            <div class="modal-header">
+                <h2>User Management</h2>
+                <button class="modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="admin-toolbar">
+                    <button id="create-user-btn" class="btn-primary btn-sm">+ Create User</button>
+                </div>
+                <div id="admin-error" class="error-message" hidden></div>
+                <table class="file-table admin-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-user-list">
+                        <tr>
+                            <td colspan="4" class="empty-state">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div id="create-user-modal" class="modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="modal-container modal-sm">
+            <div class="modal-header">
+                <h2>Create User</h2>
+                <button class="modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="create-user-error" class="error-message" hidden></div>
+                <form id="create-user-form">
+                    <div class="form-group">
+                        <label for="new-username">Username</label>
+                        <input type="text" id="new-username" required minlength="3" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-password">Password</label>
+                        <input type="password" id="new-password" required minlength="4">
+                    </div>
+                    <div class="form-group checkbox-row">
+                        <input type="checkbox" id="new-is-admin">
+                        <label for="new-is-admin">Administrator</label>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" id="cancel-create-user">Cancel</button>
+                        <button type="submit" class="btn-primary">Create User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div id="reset-password-modal" class="modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="modal-container modal-sm">
+            <div class="modal-header">
+                <h2>Reset Password</h2>
+                <button class="modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="reset-password-error" class="error-message" hidden></div>
+                <p>Reset password for <strong id="reset-username-display"></strong></p>
+                <form id="reset-password-form">
+                    <input type="hidden" id="reset-user-id">
+                    <div class="form-group">
+                        <label for="reset-new-password">New Password</label>
+                        <input type="password" id="reset-new-password" required minlength="4">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" id="cancel-reset-password">Cancel</button>
+                        <button type="submit" class="btn-primary">Reset Password</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
