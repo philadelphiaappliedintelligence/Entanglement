@@ -2402,8 +2402,8 @@ function renderAdminUsers(users) {
                 <td><span class="role-badge ${roleClass}">${role}</span></td>
                 <td>${created}</td>
                 <td class="action-cell">
-                    <button class="btn-secondary btn-xs" onclick="showResetPasswordModal('${user.id}', '${escapeHtml(user.username)}')">Reset Password</button>
-                    <button class="btn-danger btn-xs" onclick="deleteUser('${user.id}', '${escapeHtml(user.username)}')">Delete</button>
+                    <button class="btn-action btn-action-secondary" onclick="showResetPasswordModal('${user.id}', '${escapeHtml(user.username)}')">Reset Password</button>
+                    <button class="btn-action btn-action-danger" onclick="deleteUser('${user.id}', '${escapeHtml(user.username)}')">Delete</button>
                 </td>
             </tr>
         `;
