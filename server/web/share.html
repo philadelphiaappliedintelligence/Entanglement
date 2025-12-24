@@ -377,7 +377,7 @@
                 updateBreadcrumb();
                 loadFolderContents(currentSubPath);
             } else {
-                breadcrumb.innerHTML = `<span class="breadcrumb-item">${escapeHtml(shareInfo.name)}</span>`;
+                breadcrumb.innerHTML = `<span class="breadcrumb-item current">${escapeHtml(shareInfo.name)}</span>`;
                 renderSingleFile();
             }
         }
@@ -389,8 +389,12 @@
         function updateBreadcrumb() {
             const parts = [];
 
-            // Root (shared folder name)
-            parts.push(`<span class="breadcrumb-item breadcrumb-link" data-path="">${escapeHtml(shareInfo.name)}</span>`);
+            // Root (shared folder name) - current if no subpath, link otherwise
+            if (!currentSubPath) {
+                parts.push(`<span class="breadcrumb-item current">${escapeHtml(shareInfo.name)}</span>`);
+            } else {
+                parts.push(`<span class="breadcrumb-item breadcrumb-link" data-path="">${escapeHtml(shareInfo.name)}</span>`);
+            }
 
             // Subpath parts
             if (currentSubPath) {
@@ -403,7 +407,7 @@
 
                     parts.push('<span class="breadcrumb-separator">/</span>');
                     if (isLast) {
-                        parts.push(`<span class="breadcrumb-item">${escapeHtml(part)}</span>`);
+                        parts.push(`<span class="breadcrumb-item current">${escapeHtml(part)}</span>`);
                     } else {
                         parts.push(`<span class="breadcrumb-item breadcrumb-link" data-path="${escapeHtml(accumulatedPath)}">${escapeHtml(part)}</span>`);
                     }
@@ -461,7 +465,7 @@
             name.textContent = shareInfo.name;
 
             if (previewable) {
-                name.onclick = () => previewFile(shareInfo.name, downloadUrl);
+                name.onclick = () => previewFile(shareInfo.name, downloadUrl, icon);
             }
 
             fileEntry.appendChild(icon);
@@ -588,7 +592,7 @@
                     };
                 } else if (previewable) {
                     const filePath = currentSubPath ? `${currentSubPath}/${file.name}` : file.name;
-                    name.onclick = () => previewFile(file.name, getDownloadUrl(filePath));
+                    name.onclick = () => previewFile(file.name, getDownloadUrl(filePath), icon);
                 }
 
                 fileEntry.appendChild(icon);
@@ -727,10 +731,28 @@
         // Preview
         // =============================================================================
 
-        function previewFile(filename, url) {
+        let currentLoadingIcon = null;
+
+        function restoreLoadingIcon() {
+            if (currentLoadingIcon) {
+                currentLoadingIcon.element.src = currentLoadingIcon.originalSrc;
+                currentLoadingIcon.element.classList.remove('loading-spin');
+                currentLoadingIcon = null;
+            }
+        }
+
+        function previewFile(filename, url, iconElement) {
             const ext = filename.split('.').pop().toLowerCase();
 
+            // Set loading state on icon
+            if (iconElement) {
+                currentLoadingIcon = { element: iconElement, originalSrc: iconElement.src };
+                iconElement.src = 'icons/loading.svg';
+                iconElement.classList.add('loading-spin');
+            }
+
             if (AUDIO_EXTENSIONS.includes(ext)) {
+                restoreLoadingIcon();
                 playAudio(filename, url);
                 return;
             }
@@ -744,21 +766,71 @@
                 previewImage(filename, url);
                 return;
             }
+
+            // Unknown type, restore icon
+            restoreLoadingIcon();
         }
 
-        function previewImage(filename, url) {
-            previewContent.innerHTML = `<img src="${url}" alt="${escapeHtml(filename)}" style="max-width: 100%; max-height: 80vh; object-fit: contain;">`;
-            previewModal.hidden = false;
+        async function previewImage(filename, url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Failed to load image');
+
+                const blob = await response.blob();
+                const imageUrl = window.URL.createObjectURL(blob);
+                const img = new Image();
+                img.src = imageUrl;
+                img.alt = filename;
+                img.style.maxWidth = '100%';
+                img.style.maxHeight = '80vh';
+                img.style.objectFit = 'contain';
+
+                img.onload = () => {
+                    restoreLoadingIcon();
+                    previewContent.innerHTML = '';
+                    previewContent.appendChild(img);
+                    previewModal.hidden = false;
+                };
+                img.onerror = () => {
+                    restoreLoadingIcon();
+                    alert('Failed to load image');
+                };
+            } catch (error) {
+                restoreLoadingIcon();
+                console.error('Image preview error:', error);
+                alert('Preview failed: ' + error.message);
+            }
         }
 
-        function previewVideo(filename, url) {
-            previewContent.innerHTML = `
-                <video controls autoplay style="max-width: 100%; max-height: 80vh;">
-                    <source src="${url}">
-                    Your browser does not support video playback.
-                </video>
-            `;
-            previewModal.hidden = false;
+        async function previewVideo(filename, url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Failed to load video');
+
+                const blob = await response.blob();
+                const videoUrl = window.URL.createObjectURL(blob);
+                const video = document.createElement('video');
+                video.src = videoUrl;
+                video.controls = true;
+                video.autoplay = true;
+                video.style.maxWidth = '100%';
+                video.style.maxHeight = '80vh';
+
+                video.onloadeddata = () => {
+                    restoreLoadingIcon();
+                    previewContent.innerHTML = '';
+                    previewContent.appendChild(video);
+                    previewModal.hidden = false;
+                };
+                video.onerror = () => {
+                    restoreLoadingIcon();
+                    alert('Failed to load video');
+                };
+            } catch (error) {
+                restoreLoadingIcon();
+                console.error('Video preview error:', error);
+                alert('Preview failed: ' + error.message);
+            }
         }
 
         // Close preview
