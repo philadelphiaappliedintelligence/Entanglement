@@ -31,6 +31,12 @@ let state = {
     serverName: 'Entanglement', // Default fallback
 };
 
+// SVG icons for context menu (defined early for use in renderFileList)
+const ICON_NEW_FOLDER = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>';
+const ICON_RENAME = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z"/></svg>';
+const ICON_DELETE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>';
+const ICON_SHARE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88.1,88.1,0,0,0-85.23,66,8,8,0,0,1-15.5-4A104.12,104.12,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"/></svg>';
+
 // DOM Elements
 const loginView = document.getElementById('login-view');
 const browserView = document.getElementById('browser-view');
@@ -141,6 +147,9 @@ function setupEventListeners() {
 
     // Context menu
     setupContextMenu();
+    
+    // Setup modal buttons (Conflicts, Sync Settings, Share)
+    setupModals();
 }
 
 // =============================================================================
@@ -351,19 +360,30 @@ function renderFileList(entries) {
             e.preventDefault();
             e.stopPropagation();
             const entryData = JSON.parse(tr.dataset.entryData);
-            showContextMenu(e.clientX, e.clientY, [
+            const menuItems = [
                 {
                     icon: ICON_RENAME,
                     label: 'Rename',
                     action: () => renameItem(entryData)
-                },
-                {
-                    icon: ICON_DELETE,
-                    label: 'Delete',
-                    danger: true,
-                    action: () => deleteItem(entryData)
                 }
-            ]);
+            ];
+            
+            // Add share option for files and folders
+            menuItems.push({
+                icon: ICON_SHARE,
+                label: 'Share',
+                action: () => showShareModal(entryData)
+            });
+            
+            menuItems.push({ separator: true });
+            menuItems.push({
+                icon: ICON_DELETE,
+                label: 'Delete',
+                danger: true,
+                action: () => deleteItem(entryData)
+            });
+            
+            showContextMenu(e.clientX, e.clientY, menuItems);
         });
 
         // Name column
@@ -1424,11 +1444,6 @@ function updateWsStatus(status) {
 
 let contextMenuTarget = null; // Stores the entry data when right-clicking on a file/folder
 
-// SVG icons for context menu
-const ICON_NEW_FOLDER = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></svg>';
-const ICON_RENAME = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z"/></svg>';
-const ICON_DELETE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>';
-
 function showContextMenu(x, y, items) {
     // Build menu content
     contextMenu.innerHTML = '';
@@ -1522,6 +1537,561 @@ function getEntryFromRow(row) {
         return JSON.parse(row.dataset.entryData);
     }
     return null;
+}
+
+// =============================================================================
+// Conflicts Management
+// =============================================================================
+
+let currentShareFileId = null;
+
+function setupModals() {
+    console.log('[Modals] Setting up modals...');
+    
+    // Setup conflicts button
+    const conflictsBtn = document.getElementById('conflicts-btn');
+    const conflictsModal = document.getElementById('conflicts-modal');
+    
+    console.log('[Modals] conflictsBtn:', conflictsBtn);
+    console.log('[Modals] conflictsModal:', conflictsModal);
+    
+    if (conflictsBtn && conflictsModal) {
+        conflictsBtn.addEventListener('click', () => {
+            console.log('[Modals] Conflicts button clicked!');
+            if (userDropdown) userDropdown.hidden = true;
+            loadConflicts();
+            conflictsModal.hidden = false;
+        });
+        console.log('[Modals] Conflicts button listener attached');
+    } else {
+        console.error('[Modals] Could not find conflicts button or modal');
+    }
+    
+    // Setup sync settings button
+    const syncSettingsBtn = document.getElementById('sync-settings-btn');
+    const syncSettingsModal = document.getElementById('sync-settings-modal');
+    
+    console.log('[Modals] syncSettingsBtn:', syncSettingsBtn);
+    console.log('[Modals] syncSettingsModal:', syncSettingsModal);
+    
+    if (syncSettingsBtn && syncSettingsModal) {
+        syncSettingsBtn.addEventListener('click', () => {
+            console.log('[Modals] Sync Settings button clicked!');
+            if (userDropdown) userDropdown.hidden = true;
+            loadSyncSettings();
+            syncSettingsModal.hidden = false;
+        });
+        console.log('[Modals] Sync Settings button listener attached');
+    } else {
+        console.error('[Modals] Could not find sync settings button or modal');
+    }
+    
+    // Setup share button
+    const createShareBtn = document.getElementById('create-share-btn');
+    if (createShareBtn) {
+        createShareBtn.addEventListener('click', createShareLink);
+    }
+    
+    // Setup copy share link button
+    const copyShareLinkBtn = document.getElementById('copy-share-link');
+    if (copyShareLinkBtn) {
+        copyShareLinkBtn.addEventListener('click', () => {
+            const linkInput = document.getElementById('share-link');
+            if (linkInput) {
+                linkInput.select();
+                document.execCommand('copy');
+                copyShareLinkBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyShareLinkBtn.textContent = 'Copy';
+                }, 2000);
+            }
+        });
+    }
+    
+    // Setup add rule button
+    const addRuleBtn = document.getElementById('add-rule-btn');
+    if (addRuleBtn) {
+        addRuleBtn.addEventListener('click', addSyncRule);
+    }
+    
+    // Setup save public URL button
+    const savePublicUrlBtn = document.getElementById('save-public-url-btn');
+    if (savePublicUrlBtn) {
+        savePublicUrlBtn.addEventListener('click', savePublicUrl);
+    }
+    
+    // Close modal handlers
+    document.querySelectorAll('.modal-close').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const modal = e.target.closest('.modal');
+            if (modal) modal.hidden = true;
+        });
+    });
+    
+    document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+        backdrop.addEventListener('click', (e) => {
+            const modal = e.target.closest('.modal');
+            if (modal) modal.hidden = true;
+        });
+    });
+    
+    // Setup custom selects
+    setupCustomSelects();
+}
+
+// =============================================================================
+// Custom Select Component
+// =============================================================================
+
+function setupCustomSelects() {
+    document.querySelectorAll('.custom-select').forEach(select => {
+        const trigger = select.querySelector('.custom-select-trigger');
+        const dropdown = select.querySelector('.custom-select-dropdown');
+        const valueDisplay = select.querySelector('.custom-select-value');
+        const hiddenInput = select.parentElement.querySelector('input[type="hidden"]');
+        const options = select.querySelectorAll('.custom-select-option');
+        
+        if (!trigger || !dropdown) return;
+        
+        // Toggle dropdown on trigger click
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = !dropdown.hidden;
+            
+            // Close all other custom selects first
+            document.querySelectorAll('.custom-select').forEach(s => {
+                s.classList.remove('open');
+                const d = s.querySelector('.custom-select-dropdown');
+                if (d) d.hidden = true;
+            });
+            
+            // Toggle this one
+            if (!isOpen) {
+                select.classList.add('open');
+                dropdown.hidden = false;
+            }
+        });
+        
+        // Handle option selection
+        options.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const value = option.dataset.value;
+                const text = option.textContent;
+                
+                // Update display
+                if (valueDisplay) valueDisplay.textContent = text;
+                
+                // Update hidden input
+                if (hiddenInput) hiddenInput.value = value;
+                
+                // Update selected state
+                options.forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+                
+                // Close dropdown
+                select.classList.remove('open');
+                dropdown.hidden = true;
+            });
+        });
+        
+        // Set initial selected state
+        const initialValue = hiddenInput?.value || '';
+        options.forEach(option => {
+            if (option.dataset.value === initialValue) {
+                option.classList.add('selected');
+            }
+        });
+    });
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.custom-select').forEach(select => {
+            select.classList.remove('open');
+            const dropdown = select.querySelector('.custom-select-dropdown');
+            if (dropdown) dropdown.hidden = true;
+        });
+    });
+}
+
+async function loadConflicts() {
+    const conflictsList = document.getElementById('conflicts-list');
+    const noConflicts = document.getElementById('no-conflicts');
+    
+    if (!conflictsList) return;
+    
+    conflictsList.innerHTML = '<p>Loading conflicts...</p>';
+    
+    try {
+        const response = await fetch(`${API_BASE}/conflicts`, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+            },
+        });
+        
+        if (!response.ok) throw new Error('Failed to load conflicts');
+        
+        const data = await response.json();
+        
+        if (data.conflicts.length === 0) {
+            conflictsList.innerHTML = '';
+            if (noConflicts) noConflicts.hidden = false;
+        } else {
+            if (noConflicts) noConflicts.hidden = true;
+            conflictsList.innerHTML = data.conflicts.map(conflict => `
+                <div class="conflict-item" data-id="${conflict.id}">
+                    <div class="conflict-info">
+                        <span class="conflict-path">${escapeHtml(conflict.file_path)}</span>
+                        <span class="conflict-type">${conflict.conflict_type}</span>
+                        <span class="conflict-date">${formatDate(conflict.detected_at)}</span>
+                    </div>
+                    <div class="conflict-actions">
+                        <button class="btn-small" onclick="resolveConflict('${conflict.id}', 'keep_local')">Keep Local</button>
+                        <button class="btn-small" onclick="resolveConflict('${conflict.id}', 'keep_remote')">Keep Remote</button>
+                        <button class="btn-small btn-secondary" onclick="resolveConflict('${conflict.id}', 'keep_both')">Keep Both</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading conflicts:', error);
+        conflictsList.innerHTML = '<p class="error">Failed to load conflicts</p>';
+    }
+}
+
+async function resolveConflict(conflictId, resolution) {
+    try {
+        const response = await fetch(`${API_BASE}/conflicts/${conflictId}/resolve`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ resolution }),
+        });
+        
+        if (!response.ok) throw new Error('Failed to resolve conflict');
+        
+        // Reload conflicts list
+        loadConflicts();
+        
+    } catch (error) {
+        console.error('Error resolving conflict:', error);
+        alert('Failed to resolve conflict: ' + error.message);
+    }
+}
+
+// =============================================================================
+// File Sharing
+// =============================================================================
+
+function showShareModal(entry) {
+    const shareModal = document.getElementById('share-modal');
+    const shareForm = document.getElementById('share-form');
+    const shareResult = document.getElementById('share-result');
+    
+    if (!shareModal) return;
+    
+    currentShareFileId = entry.id;
+    if (shareForm) shareForm.hidden = false;
+    if (shareResult) shareResult.hidden = true;
+    
+    // Reset form
+    const expiryEl = document.getElementById('share-expiry');
+    const passwordEl = document.getElementById('share-password');
+    const maxDownloadsEl = document.getElementById('share-max-downloads');
+    
+    if (expiryEl) expiryEl.value = '';
+    if (passwordEl) passwordEl.value = '';
+    if (maxDownloadsEl) maxDownloadsEl.value = '';
+    
+    // Reset custom select display
+    const expirySelect = document.getElementById('share-expiry-select');
+    if (expirySelect) {
+        const valueDisplay = expirySelect.querySelector('.custom-select-value');
+        if (valueDisplay) valueDisplay.textContent = 'Never';
+        expirySelect.querySelectorAll('.custom-select-option').forEach(opt => {
+            opt.classList.toggle('selected', opt.dataset.value === '');
+        });
+    }
+    
+    shareModal.hidden = false;
+}
+
+async function createShareLink() {
+    if (!currentShareFileId) return;
+    
+    const createShareBtn = document.getElementById('create-share-btn');
+    const shareForm = document.getElementById('share-form');
+    const shareResult = document.getElementById('share-result');
+    
+    const expiryHours = document.getElementById('share-expiry')?.value;
+    const password = document.getElementById('share-password')?.value;
+    const maxDownloads = document.getElementById('share-max-downloads')?.value;
+    
+    if (createShareBtn) {
+        createShareBtn.disabled = true;
+        createShareBtn.textContent = 'Creating...';
+    }
+    
+    try {
+        const body = {
+            file_id: currentShareFileId,
+        };
+        
+        if (expiryHours) body.expires_in_hours = parseInt(expiryHours);
+        if (password) body.password = password;
+        if (maxDownloads) body.max_downloads = parseInt(maxDownloads);
+        
+        const response = await fetch(`${API_BASE}/shares`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+        
+        if (!response.ok) throw new Error('Failed to create share link');
+        
+        const data = await response.json();
+        
+        // Show result
+        if (shareForm) shareForm.hidden = true;
+        if (shareResult) shareResult.hidden = false;
+        
+        // Use custom PUBLIC_URL if set, otherwise use the server-provided URL
+        const customPublicUrl = localStorage.getItem('entanglement_public_url');
+        let shareUrl = data.share_url;
+        if (customPublicUrl && data.token) {
+            shareUrl = `${customPublicUrl}/share.html#${data.token}`;
+        }
+        
+        const shareLinkInput = document.getElementById('share-link');
+        if (shareLinkInput) shareLinkInput.value = shareUrl;
+        
+    } catch (error) {
+        console.error('Error creating share:', error);
+        alert('Failed to create share link: ' + error.message);
+    } finally {
+        if (createShareBtn) {
+            createShareBtn.disabled = false;
+            createShareBtn.textContent = 'Create Share Link';
+        }
+    }
+}
+
+// =============================================================================
+// Selective Sync Settings
+// =============================================================================
+
+async function loadSyncSettings() {
+    const syncRulesList = document.getElementById('sync-rules-list');
+    const devicesList = document.getElementById('devices-list');
+    const publicUrlInput = document.getElementById('public-url-setting');
+    const publicUrlHint = document.getElementById('public-url-hint');
+    
+    // Load public URL setting from localStorage
+    if (publicUrlInput) {
+        const savedPublicUrl = localStorage.getItem('entanglement_public_url') || '';
+        publicUrlInput.value = savedPublicUrl;
+        updatePublicUrlHint(publicUrlHint, savedPublicUrl);
+    }
+    
+    // Load sync rules
+    try {
+        const rulesResponse = await fetch(`${API_BASE}/sync/rules`, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+            },
+        });
+        
+        if (rulesResponse.ok) {
+            const data = await rulesResponse.json();
+            renderSyncRules(data.rules);
+        }
+    } catch (error) {
+        console.error('Error loading sync rules:', error);
+        if (syncRulesList) syncRulesList.innerHTML = '<p class="error">Failed to load sync rules</p>';
+    }
+    
+    // Load devices
+    try {
+        const devicesResponse = await fetch(`${API_BASE}/sync/devices`, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+            },
+        });
+        
+        if (devicesResponse.ok) {
+            const devices = await devicesResponse.json();
+            renderDevices(devices);
+        }
+    } catch (error) {
+        console.error('Error loading devices:', error);
+        if (devicesList) devicesList.innerHTML = '<p class="error">Failed to load devices</p>';
+    }
+}
+
+function renderSyncRules(rules) {
+    const syncRulesList = document.getElementById('sync-rules-list');
+    if (!syncRulesList) return;
+    
+    if (rules.length === 0) {
+        syncRulesList.innerHTML = '<p class="empty-hint">No sync rules configured. All files will be synced.</p>';
+        return;
+    }
+    
+    syncRulesList.innerHTML = rules.map(rule => `
+        <div class="sync-rule-item" data-id="${rule.id}">
+            <span class="rule-type ${rule.rule_type}">${rule.rule_type}</span>
+            <span class="rule-pattern">${escapeHtml(rule.path_pattern)}</span>
+            <button class="btn-icon btn-danger" onclick="deleteSyncRule('${rule.id}')" title="Delete rule">&times;</button>
+        </div>
+    `).join('');
+}
+
+function renderDevices(devices) {
+    const devicesList = document.getElementById('devices-list');
+    if (!devicesList) return;
+    
+    if (devices.length === 0) {
+        devicesList.innerHTML = '<p class="empty-hint">No devices registered.</p>';
+        return;
+    }
+    
+    devicesList.innerHTML = devices.map(device => `
+        <div class="device-item">
+            <div class="device-info">
+                <span class="device-name">${escapeHtml(device.device_name || device.device_id)}</span>
+                <span class="device-last-seen">Last seen: ${formatDate(device.last_seen_at)}</span>
+            </div>
+            <span class="device-status ${device.is_active ? 'active' : 'inactive'}">${device.is_active ? 'Active' : 'Inactive'}</span>
+        </div>
+    `).join('');
+}
+
+async function addSyncRule() {
+    const ruleType = document.getElementById('new-rule-type')?.value;
+    const pattern = document.getElementById('new-rule-pattern')?.value?.trim();
+    
+    if (!pattern) {
+        alert('Please enter a path pattern');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/sync/rules`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                rule_type: ruleType,
+                path_pattern: pattern,
+            }),
+        });
+        
+        if (!response.ok) throw new Error('Failed to add rule');
+        
+        const patternInput = document.getElementById('new-rule-pattern');
+        if (patternInput) patternInput.value = '';
+        loadSyncSettings();
+        
+    } catch (error) {
+        console.error('Error adding sync rule:', error);
+        alert('Failed to add rule: ' + error.message);
+    }
+}
+
+async function deleteSyncRule(ruleId) {
+    if (!confirm('Delete this sync rule?')) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/sync/rules/${ruleId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+            },
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete rule');
+        
+        loadSyncSettings();
+        
+    } catch (error) {
+        console.error('Error deleting sync rule:', error);
+        alert('Failed to delete rule: ' + error.message);
+    }
+}
+
+// =============================================================================
+// Public URL Setting
+// =============================================================================
+
+function updatePublicUrlHint(hintEl, url) {
+    if (!hintEl) return;
+    if (url) {
+        hintEl.textContent = `Share links will use: ${url}/share.html#TOKEN`;
+    } else {
+        hintEl.textContent = `Share links will use: ${window.location.origin}/share.html#TOKEN`;
+    }
+}
+
+function savePublicUrl() {
+    const publicUrlInput = document.getElementById('public-url-setting');
+    const publicUrlHint = document.getElementById('public-url-hint');
+    const saveBtn = document.getElementById('save-public-url-btn');
+    
+    if (!publicUrlInput) return;
+    
+    let url = publicUrlInput.value.trim();
+    
+    // Remove trailing slash if present
+    if (url.endsWith('/')) {
+        url = url.slice(0, -1);
+    }
+    
+    // Validate URL if provided
+    if (url && !url.match(/^https?:\/\/.+/)) {
+        alert('Please enter a valid URL starting with http:// or https://');
+        return;
+    }
+    
+    // Save to localStorage
+    if (url) {
+        localStorage.setItem('entanglement_public_url', url);
+    } else {
+        localStorage.removeItem('entanglement_public_url');
+    }
+    
+    // Update hint
+    updatePublicUrlHint(publicUrlHint, url);
+    
+    // Show confirmation
+    if (saveBtn) {
+        const originalText = saveBtn.textContent;
+        saveBtn.textContent = 'Saved!';
+        setTimeout(() => {
+            saveBtn.textContent = originalText;
+        }, 1500);
+    }
+}
+
+function getPublicUrl() {
+    return localStorage.getItem('entanglement_public_url') || window.location.origin;
+}
+
+// =============================================================================
+// Utility: HTML Escape
+// =============================================================================
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // =============================================================================

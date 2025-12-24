@@ -6,8 +6,11 @@ mod admin;
 mod auth;
 mod blobs;
 mod chunks;
+mod conflicts;
 mod error;
 mod files;
+mod selective_sync;
+mod sharing;
 mod types;
 mod v1;
 mod versions;
@@ -26,7 +29,10 @@ use tracing::Level;
 pub use admin::admin_routes;
 pub use auth::auth_routes;
 pub use blobs::metadata_routes;
+pub use conflicts::conflict_routes;
 pub use files::file_routes;
+pub use selective_sync::selective_sync_routes;
+pub use sharing::sharing_routes;
 pub use v1::v1_routes;
 
 pub async fn serve(addr: SocketAddr, state: AppState) -> anyhow::Result<()> {
@@ -76,6 +82,9 @@ pub async fn serve(addr: SocketAddr, state: AppState) -> anyhow::Result<()> {
         .merge(v1_routes())
         .merge(metadata_routes())
         .merge(admin_routes())
+        .merge(conflict_routes())
+        .merge(sharing_routes())
+        .merge(selective_sync_routes())
         .layer(cors)
         .layer(body_limit)
         // Request ID: Generate UUID, set on request, propagate to response

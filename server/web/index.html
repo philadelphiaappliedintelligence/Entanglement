@@ -63,6 +63,9 @@
                             <div id="theme-toggle" class="toggle-switch"></div>
                         </div>
                         <div class="dropdown-separator"></div>
+                        <button id="conflicts-btn" class="dropdown-item">Sync Conflicts</button>
+                        <button id="sync-settings-btn" class="dropdown-item">Settings</button>
+                        <div class="dropdown-separator"></div>
                         <button id="logout-btn" class="dropdown-item">Log Out</button>
                     </div>
                 </div>
@@ -139,6 +142,121 @@
         </div>
     </div>
 
+    <!-- Conflicts Modal -->
+    <div id="conflicts-modal" class="modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="modal-container modal-lg">
+            <div class="modal-header">
+                <h2>Sync Conflicts</h2>
+                <button class="modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="conflicts-list" class="conflicts-list">
+                    <!-- Conflicts populated by JavaScript -->
+                </div>
+                <div id="no-conflicts" class="empty-state" hidden>
+                    <p>No sync conflicts</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Modal -->
+    <div id="share-modal" class="modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>Share File</h2>
+                <button class="modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="share-form" class="share-form">
+                    <div class="form-group">
+                        <label>Expires after</label>
+                        <div class="custom-select" id="share-expiry-select">
+                            <button type="button" class="custom-select-trigger" id="share-expiry-trigger">
+                                <span class="custom-select-value">Never</span>
+                                <svg class="custom-select-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                            <div class="custom-select-dropdown" hidden>
+                                <button type="button" class="custom-select-option" data-value="">Never</button>
+                                <button type="button" class="custom-select-option" data-value="1">1 hour</button>
+                                <button type="button" class="custom-select-option" data-value="24">24 hours</button>
+                                <button type="button" class="custom-select-option" data-value="168">7 days</button>
+                                <button type="button" class="custom-select-option" data-value="720">30 days</button>
+                            </div>
+                        </div>
+                        <input type="hidden" id="share-expiry" value="">
+                    </div>
+                    <div class="form-group">
+                        <label for="share-password">Password (optional)</label>
+                        <input type="password" id="share-password" placeholder="Leave empty for no password">
+                    </div>
+                    <div class="form-group">
+                        <label for="share-max-downloads">Max downloads</label>
+                        <input type="number" id="share-max-downloads" placeholder="Unlimited" min="1">
+                    </div>
+                    <button id="create-share-btn" class="btn-primary">Create Share Link</button>
+                </div>
+                <div id="share-result" class="share-result" hidden>
+                    <label>Share Link</label>
+                    <div class="share-link-container">
+                        <input type="text" id="share-link" readonly>
+                        <button id="copy-share-link" class="btn-copy">Copy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="sync-settings-modal" class="modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="modal-container modal-lg">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>General</h3>
+                    <div class="form-group">
+                        <label for="public-url-setting">Public URL</label>
+                        <p class="settings-description">Base URL used for share links. Leave empty to use the current origin.</p>
+                        <div class="input-with-button">
+                            <input type="text" id="public-url-setting" placeholder="https://files.example.com">
+                            <button id="save-public-url-btn" class="btn-small">Save</button>
+                        </div>
+                        <p id="public-url-hint" class="settings-hint"></p>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Selective Sync</h3>
+                    <p class="settings-description">Choose which folders to sync to this device.</p>
+                    <div id="sync-rules-list" class="sync-rules-list">
+                        <!-- Rules populated by JavaScript -->
+                    </div>
+                    <div class="add-rule-form">
+                        <select id="new-rule-type">
+                            <option value="exclude">Exclude</option>
+                            <option value="include">Include</option>
+                        </select>
+                        <input type="text" id="new-rule-pattern" placeholder="Path pattern (e.g., /large-files/)">
+                        <button id="add-rule-btn" class="btn-small">Add Rule</button>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Devices</h3>
+                    <div id="devices-list" class="devices-list">
+                        <!-- Devices populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Immediately apply theme to prevent flash
         if (localStorage.getItem('entanglement_theme') === 'dark') {
@@ -151,7 +269,7 @@
             document.getElementById('login-view').hidden = false;
         }
     </script>
-    <script src="app.js?v=12"></script>
+    <script src="app.js?v=20"></script>
 </body>
 
 </html>

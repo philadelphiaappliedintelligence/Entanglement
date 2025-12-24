@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared - Entanglement</title>
+    <meta name="description" content="Shared file from Entanglement">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- Password Prompt (shown when needed) -->
+    <div id="password-view" class="view" hidden>
+        <div class="login-container">
+            <header class="login-header">
+                <img src="logo.svg" alt="Entanglement" class="logo-img">
+            </header>
+            <form id="password-form" autocomplete="off">
+                <div class="form-group">
+                    <label for="share-password-input">Password Required</label>
+                    <input type="password" id="share-password-input" name="password" placeholder="Enter password" required autofocus>
+                </div>
+                <div id="password-error" class="error-message" hidden></div>
+                <button type="submit" class="btn-primary">Access Content</button>
+            </form>
+            <footer class="login-footer">
+                <span>This shared content is password protected</span>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Error View -->
+    <div id="error-view" class="view" hidden>
+        <div class="login-container">
+            <header class="login-header">
+                <img src="logo.svg" alt="Entanglement" class="logo-img">
+            </header>
+            <div style="text-align: center; padding: 24px;">
+                <h2 id="error-title" style="margin: 0 0 8px 0; color: var(--color-text-primary);">Share Not Found</h2>
+                <p id="error-message" style="margin: 0; color: var(--color-text-secondary);">This share link may have expired or been revoked.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Browser View -->
+    <div id="browser-view" class="view" hidden>
+        <header class="browser-header">
+            <div class="header-left">
+                <img src="logo.svg" alt="Entanglement" class="logo-img">
+            </div>
+            <div class="header-right">
+                <div class="user-menu-container">
+                    <button id="user-menu-btn" class="settings-icon-btn" aria-label="Settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg>
+                    </button>
+                    <div id="user-dropdown" class="user-dropdown" hidden>
+                        <div class="dropdown-header">Shared Content</div>
+                        <div class="dropdown-toggle">
+                            <span>Dark Mode</span>
+                            <div id="theme-toggle" class="toggle-switch"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <nav class="breadcrumb-bar">
+            <div id="breadcrumb" class="breadcrumb"></div>
+            <div class="toolbar">
+                <span id="shared-badge" style="font-size: 11px; font-weight: 500; color: var(--color-accent); background-color: rgba(0, 102, 204, 0.1); padding: 4px 10px; border-radius: 12px;">Shared</span>
+            </div>
+        </nav>
+
+        <main class="file-browser">
+            <table class="file-table">
+                <thead>
+                    <tr>
+                        <th class="col-name">Name</th>
+                        <th class="col-size">Size</th>
+                        <th class="col-modified">Date Modified</th>
+                        <th class="col-actions"></th>
+                    </tr>
+                </thead>
+                <tbody id="file-list">
+                </tbody>
+            </table>
+            <div id="empty-state" class="empty-state" hidden>
+                <p>This folder is empty</p>
+            </div>
+            <div id="loading-state" class="loading-state">
+                <p>Loading...</p>
+            </div>
+        </main>
+
+        <footer class="browser-footer">
+            <div class="footer-left">
+                <span id="item-count">0 items</span>
+            </div>
+            <div class="footer-right">
+                <span id="current-time"></span>
+            </div>
+        </footer>
+
+        <!-- Audio Player Bar -->
+        <div id="audio-player" class="audio-player" hidden>
+            <button id="audio-play-btn" class="audio-play-btn" aria-label="Play/Pause">
+                <span id="audio-play-icon">▶</span>
+            </button>
+            <span id="audio-track-name" class="audio-track-name"></span>
+            <span id="audio-current-time" class="audio-time">0:00</span>
+            <input type="range" id="audio-progress" class="audio-progress" value="0" min="0" max="100">
+            <span id="audio-duration" class="audio-time">0:00</span>
+            <button id="audio-close-btn" class="audio-close-btn" aria-label="Close">×</button>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="preview-modal" class="preview-modal" hidden>
+        <div class="preview-backdrop"></div>
+        <div class="preview-container">
+            <button id="preview-close" class="preview-close" aria-label="Close">×</button>
+            <div id="preview-content" class="preview-content">
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div id="loading-modal" class="modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="modal-container" style="max-width: 300px; text-align: center;">
+            <div class="modal-body" style="padding: 32px;">
+                <div class="upload-progress-spinner" style="margin: 0 auto 16px;"></div>
+                <p id="loading-modal-text" style="margin: 0; color: var(--color-text-primary);">Downloading...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Immediately apply theme to prevent flash
+        if (localStorage.getItem('entanglement_theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+    </script>
+    <script>
+        // =============================================================================
+        // Configuration
+        // =============================================================================
+        
+        const API_BASE = `${window.location.protocol}//${window.location.hostname}:1975`;
+        const shareToken = window.location.hash.slice(1);
+        
+        // File extensions
+        const AUDIO_EXTENSIONS = ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'wma', 'aiff', 'aif', 'alac', 'opus'];
+        const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'm4v', 'ogv'];
+        const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+        
+        // State
+        let sharePassword = null;
+        let shareInfo = null;
+        let currentAudio = null;
+        let currentSubPath = ''; // Track current subfolder path within the shared folder
+        
+        // =============================================================================
+        // DOM Elements
+        // =============================================================================
+        
+        const passwordView = document.getElementById('password-view');
+        const errorView = document.getElementById('error-view');
+        const browserView = document.getElementById('browser-view');
+        const passwordForm = document.getElementById('password-form');
+        const passwordInput = document.getElementById('share-password-input');
+        const passwordError = document.getElementById('password-error');
+        const errorTitle = document.getElementById('error-title');
+        const errorMessage = document.getElementById('error-message');
+        const breadcrumb = document.getElementById('breadcrumb');
+        const fileList = document.getElementById('file-list');
+        const emptyState = document.getElementById('empty-state');
+        const loadingState = document.getElementById('loading-state');
+        const itemCount = document.getElementById('item-count');
+        const currentTimeEl = document.getElementById('current-time');
+        const userMenuBtn = document.getElementById('user-menu-btn');
+        const userDropdown = document.getElementById('user-dropdown');
+        const themeToggle = document.getElementById('theme-toggle');
+        const loadingModal = document.getElementById('loading-modal');
+        const loadingModalText = document.getElementById('loading-modal-text');
+        
+        // Preview elements
+        const previewModal = document.getElementById('preview-modal');
+        const previewContent = document.getElementById('preview-content');
+        const previewClose = document.getElementById('preview-close');
+        const previewBackdrop = document.querySelector('.preview-backdrop');
+        
+        // Audio player elements
+        const audioPlayer = document.getElementById('audio-player');
+        const audioPlayBtn = document.getElementById('audio-play-btn');
+        const audioPlayIcon = document.getElementById('audio-play-icon');
+        const audioTrackName = document.getElementById('audio-track-name');
+        const audioCurrentTime = document.getElementById('audio-current-time');
+        const audioProgress = document.getElementById('audio-progress');
+        const audioDuration = document.getElementById('audio-duration');
+        const audioCloseBtn = document.getElementById('audio-close-btn');
+        
+        // =============================================================================
+        // Theme & Settings
+        // =============================================================================
+        
+        // Theme toggle
+        if (localStorage.getItem('entanglement_theme') === 'dark') {
+            themeToggle?.classList.add('active');
+        }
+        
+        themeToggle?.addEventListener('click', () => {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('entanglement_theme', 'light');
+                themeToggle.classList.remove('active');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('entanglement_theme', 'dark');
+                themeToggle.classList.add('active');
+            }
+        });
+        
+        // User menu dropdown
+        userMenuBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            userDropdown.hidden = !userDropdown.hidden;
+        });
+        
+        document.addEventListener('click', () => {
+            if (userDropdown) userDropdown.hidden = true;
+        });
+        
+        // =============================================================================
+        // Time Display
+        // =============================================================================
+        
+        function updateTime() {
+            if (currentTimeEl) {
+                currentTimeEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+        }
+        updateTime();
+        setInterval(updateTime, 60000);
+        
+        // =============================================================================
+        // Loading Modal
+        // =============================================================================
+        
+        function showLoadingModal(text = 'Downloading...') {
+            if (loadingModalText) loadingModalText.textContent = text;
+            if (loadingModal) loadingModal.hidden = false;
+        }
+        
+        function hideLoadingModal() {
+            if (loadingModal) loadingModal.hidden = true;
+        }
+        
+        // =============================================================================
+        // Initialize
+        // =============================================================================
+        
+        init();
+        
+        async function init() {
+            if (!shareToken) {
+                showError('Invalid Link', 'This share link is invalid.');
+                return;
+            }
+            await loadShare();
+        }
+        
+        // =============================================================================
+        // Share Loading
+        // =============================================================================
+        
+        async function loadShare() {
+            showLoading();
+            
+            try {
+                const url = new URL(`${API_BASE}/share/${shareToken}`);
+                if (sharePassword) {
+                    url.searchParams.set('password', sharePassword);
+                }
+                
+                const response = await fetch(url);
+                
+                if (response.status === 401) {
+                    const data = await response.json().catch(() => ({}));
+                    if (data.error?.includes('Password required')) {
+                        showPasswordPrompt();
+                        return;
+                    } else if (data.error?.includes('Invalid password')) {
+                        showPasswordPrompt('Invalid password. Please try again.');
+                        return;
+                    }
+                }
+                
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Share not found');
+                }
+                
+                shareInfo = await response.json();
+                currentSubPath = ''; // Reset to root
+                showContent();
+                
+            } catch (error) {
+                console.error('Error loading share:', error);
+                showError('Share Not Found', error.message || 'This share link may have expired or been revoked.');
+            }
+        }
+        
+        function showLoading() {
+            passwordView.hidden = true;
+            errorView.hidden = true;
+            browserView.hidden = false;
+            loadingState.hidden = false;
+            emptyState.hidden = true;
+            fileList.innerHTML = '';
+        }
+        
+        function showPasswordPrompt(errorMsg = null) {
+            passwordView.hidden = false;
+            errorView.hidden = true;
+            browserView.hidden = true;
+            
+            if (errorMsg) {
+                passwordError.textContent = errorMsg;
+                passwordError.hidden = false;
+            } else {
+                passwordError.hidden = true;
+            }
+            
+            passwordInput.focus();
+        }
+        
+        function showError(title, message) {
+            passwordView.hidden = true;
+            errorView.hidden = false;
+            browserView.hidden = true;
+            
+            errorTitle.textContent = title;
+            errorMessage.textContent = message;
+        }
+        
+        function showContent() {
+            passwordView.hidden = true;
+            errorView.hidden = true;
+            browserView.hidden = false;
+            loadingState.hidden = true;
+            
+            document.title = `${shareInfo.name} - Shared via Entanglement`;
+            
+            if (shareInfo.is_folder) {
+                updateBreadcrumb();
+                loadFolderContents(currentSubPath);
+            } else {
+                breadcrumb.innerHTML = `<span class="breadcrumb-item">${escapeHtml(shareInfo.name)}</span>`;
+                renderSingleFile();
+            }
+        }
+        
+        // =============================================================================
+        // Breadcrumb Navigation
+        // =============================================================================
+        
+        function updateBreadcrumb() {
+            const parts = [];
+            
+            // Root (shared folder name)
+            parts.push(`<span class="breadcrumb-item breadcrumb-link" data-path="">${escapeHtml(shareInfo.name)}</span>`);
+            
+            // Subpath parts
+            if (currentSubPath) {
+                const pathParts = currentSubPath.split('/').filter(p => p);
+                let accumulatedPath = '';
+                
+                pathParts.forEach((part, index) => {
+                    accumulatedPath += (accumulatedPath ? '/' : '') + part;
+                    const isLast = index === pathParts.length - 1;
+                    
+                    parts.push('<span class="breadcrumb-separator">/</span>');
+                    if (isLast) {
+                        parts.push(`<span class="breadcrumb-item">${escapeHtml(part)}</span>`);
+                    } else {
+                        parts.push(`<span class="breadcrumb-item breadcrumb-link" data-path="${escapeHtml(accumulatedPath)}">${escapeHtml(part)}</span>`);
+                    }
+                });
+            }
+            
+            breadcrumb.innerHTML = parts.join('');
+            
+            // Add click handlers to breadcrumb links
+            breadcrumb.querySelectorAll('.breadcrumb-link').forEach(link => {
+                link.addEventListener('click', () => {
+                    const path = link.getAttribute('data-path');
+                    navigateToFolder(path);
+                });
+            });
+        }
+        
+        function navigateToFolder(subPath) {
+            currentSubPath = subPath;
+            updateBreadcrumb();
+            loadFolderContents(subPath);
+        }
+        
+        // =============================================================================
+        // Single File Display
+        // =============================================================================
+        
+        function renderSingleFile() {
+            const downloadUrl = getDownloadUrl('');
+            const ext = shareInfo.name.split('.').pop().toLowerCase();
+            const isAudio = AUDIO_EXTENSIONS.includes(ext);
+            const isVideo = VIDEO_EXTENSIONS.includes(ext);
+            const isImage = IMAGE_EXTENSIONS.includes(ext);
+            const previewable = isAudio || isVideo || isImage;
+            
+            fileList.innerHTML = '';
+            
+            const tr = document.createElement('tr');
+            
+            // Name column
+            const tdName = document.createElement('td');
+            tdName.className = 'col-name';
+            
+            const fileEntry = document.createElement('div');
+            fileEntry.className = 'file-entry';
+            
+            const icon = document.createElement('img');
+            icon.className = 'file-icon';
+            icon.src = getFileIcon(shareInfo.name);
+            icon.alt = '';
+            icon.draggable = false;
+            
+            const name = document.createElement('span');
+            name.className = 'file-name' + (previewable ? ' previewable' : '');
+            name.textContent = shareInfo.name;
+            
+            if (previewable) {
+                name.onclick = () => previewFile(shareInfo.name, downloadUrl);
+            }
+            
+            fileEntry.appendChild(icon);
+            fileEntry.appendChild(name);
+            tdName.appendChild(fileEntry);
+            
+            // Size column
+            const tdSize = document.createElement('td');
+            tdSize.className = 'col-size';
+            tdSize.textContent = formatFileSize(shareInfo.size_bytes);
+            
+            // Modified column
+            const tdModified = document.createElement('td');
+            tdModified.className = 'col-modified';
+            tdModified.textContent = '—';
+            
+            // Actions column
+            const tdActions = document.createElement('td');
+            tdActions.className = 'col-actions';
+            
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'btn-download';
+            downloadBtn.textContent = 'Download';
+            downloadBtn.onclick = () => downloadFile(shareInfo.name, downloadUrl);
+            tdActions.appendChild(downloadBtn);
+            
+            tr.appendChild(tdName);
+            tr.appendChild(tdSize);
+            tr.appendChild(tdModified);
+            tr.appendChild(tdActions);
+            
+            fileList.appendChild(tr);
+            itemCount.textContent = '1 item';
+        }
+        
+        // =============================================================================
+        // Folder Contents
+        // =============================================================================
+        
+        async function loadFolderContents(subPath = '') {
+            loadingState.hidden = false;
+            emptyState.hidden = true;
+            fileList.innerHTML = '';
+            
+            try {
+                let url = `${API_BASE}/share/${shareToken}/contents`;
+                const params = new URLSearchParams();
+                if (sharePassword) {
+                    params.set('password', sharePassword);
+                }
+                if (subPath) {
+                    params.set('path', subPath);
+                }
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load folder contents');
+                }
+                
+                const data = await response.json();
+                loadingState.hidden = true;
+                renderFolderContents(data.files || []);
+                
+            } catch (error) {
+                console.error('Error loading folder contents:', error);
+                loadingState.hidden = true;
+                fileList.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 24px; color: var(--color-text-secondary);">Unable to load folder contents</td></tr>';
+            }
+        }
+        
+        function renderFolderContents(files) {
+            if (files.length === 0) {
+                fileList.innerHTML = '';
+                emptyState.hidden = false;
+                itemCount.textContent = '0 items';
+                return;
+            }
+            
+            emptyState.hidden = true;
+            fileList.innerHTML = '';
+            
+            // Sort: folders first, then files, alphabetically
+            files.sort((a, b) => {
+                if (a.is_folder && !b.is_folder) return -1;
+                if (!a.is_folder && b.is_folder) return 1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            files.forEach(file => {
+                const tr = document.createElement('tr');
+                
+                // Name column
+                const tdName = document.createElement('td');
+                tdName.className = 'col-name';
+                
+                const fileEntry = document.createElement('div');
+                fileEntry.className = 'file-entry';
+                
+                const icon = document.createElement('img');
+                icon.className = 'file-icon';
+                icon.src = file.is_folder ? 'icons/folder.svg' : getFileIcon(file.name);
+                icon.alt = '';
+                icon.draggable = false;
+                
+                const ext = file.name.split('.').pop().toLowerCase();
+                const isAudio = AUDIO_EXTENSIONS.includes(ext);
+                const isVideo = VIDEO_EXTENSIONS.includes(ext);
+                const isImage = IMAGE_EXTENSIONS.includes(ext);
+                const previewable = !file.is_folder && (isAudio || isVideo || isImage);
+                
+                const name = document.createElement('span');
+                name.className = 'file-name' + (file.is_folder ? ' folder' : '') + (previewable ? ' previewable' : '');
+                name.textContent = file.name;
+                
+                // Click handler
+                if (file.is_folder) {
+                    name.onclick = () => {
+                        const newPath = currentSubPath ? `${currentSubPath}/${file.name}` : file.name;
+                        navigateToFolder(newPath);
+                    };
+                } else if (previewable) {
+                    const filePath = currentSubPath ? `${currentSubPath}/${file.name}` : file.name;
+                    name.onclick = () => previewFile(file.name, getDownloadUrl(filePath));
+                }
+                
+                fileEntry.appendChild(icon);
+                fileEntry.appendChild(name);
+                tdName.appendChild(fileEntry);
+                
+                // Size column
+                const tdSize = document.createElement('td');
+                tdSize.className = 'col-size';
+                tdSize.textContent = file.is_folder ? '—' : formatFileSize(file.size_bytes);
+                
+                // Modified column
+                const tdModified = document.createElement('td');
+                tdModified.className = 'col-modified';
+                tdModified.textContent = file.updated_at ? formatDate(file.updated_at) : '—';
+                
+                // Actions column
+                const tdActions = document.createElement('td');
+                tdActions.className = 'col-actions';
+                
+                if (!file.is_folder) {
+                    const filePath = currentSubPath ? `${currentSubPath}/${file.name}` : file.name;
+                    const downloadUrl = getDownloadUrl(filePath);
+                    
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'btn-download';
+                    downloadBtn.textContent = 'Download';
+                    downloadBtn.onclick = () => downloadFile(file.name, downloadUrl);
+                    tdActions.appendChild(downloadBtn);
+                }
+                
+                tr.appendChild(tdName);
+                tr.appendChild(tdSize);
+                tr.appendChild(tdModified);
+                tr.appendChild(tdActions);
+                
+                fileList.appendChild(tr);
+            });
+            
+            const folderCount = files.filter(f => f.is_folder).length;
+            const fileCount = files.filter(f => !f.is_folder).length;
+            const parts = [];
+            if (folderCount > 0) parts.push(`${folderCount} folder${folderCount !== 1 ? 's' : ''}`);
+            if (fileCount > 0) parts.push(`${fileCount} file${fileCount !== 1 ? 's' : ''}`);
+            itemCount.textContent = parts.join(', ') || '0 items';
+        }
+        
+        function getDownloadUrl(filePath) {
+            let url;
+            if (filePath) {
+                // Encode each path segment separately to preserve slashes
+                const encodedPath = filePath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+                url = `${API_BASE}/share/${shareToken}/download/${encodedPath}`;
+            } else {
+                url = `${API_BASE}/share/${shareToken}/download`;
+            }
+            if (sharePassword) {
+                url += `?password=${encodeURIComponent(sharePassword)}`;
+            }
+            return url;
+        }
+        
+        // =============================================================================
+        // File Download
+        // =============================================================================
+        
+        async function downloadFile(filename, url) {
+            showLoadingModal(`Downloading ${filename}...`);
+            
+            try {
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error('Download failed');
+                }
+                
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = downloadUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(downloadUrl);
+                document.body.removeChild(a);
+                
+            } catch (error) {
+                console.error('Download error:', error);
+                alert('Download failed: ' + error.message);
+            } finally {
+                hideLoadingModal();
+            }
+        }
+        
+        // =============================================================================
+        // Preview
+        // =============================================================================
+        
+        function previewFile(filename, url) {
+            const ext = filename.split('.').pop().toLowerCase();
+            
+            if (AUDIO_EXTENSIONS.includes(ext)) {
+                playAudio(filename, url);
+                return;
+            }
+            
+            if (VIDEO_EXTENSIONS.includes(ext)) {
+                previewVideo(filename, url);
+                return;
+            }
+            
+            if (IMAGE_EXTENSIONS.includes(ext)) {
+                previewImage(filename, url);
+                return;
+            }
+        }
+        
+        function previewImage(filename, url) {
+            previewContent.innerHTML = `<img src="${url}" alt="${escapeHtml(filename)}" style="max-width: 100%; max-height: 80vh; object-fit: contain;">`;
+            previewModal.hidden = false;
+        }
+        
+        function previewVideo(filename, url) {
+            previewContent.innerHTML = `
+                <video controls autoplay style="max-width: 100%; max-height: 80vh;">
+                    <source src="${url}">
+                    Your browser does not support video playback.
+                </video>
+            `;
+            previewModal.hidden = false;
+        }
+        
+        // Close preview
+        previewClose?.addEventListener('click', closePreview);
+        previewBackdrop?.addEventListener('click', closePreview);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !previewModal.hidden) {
+                closePreview();
+            }
+        });
+        
+        function closePreview() {
+            previewModal.hidden = true;
+            const video = previewContent.querySelector('video');
+            if (video) video.pause();
+            previewContent.innerHTML = '';
+        }
+        
+        // =============================================================================
+        // Audio Player
+        // =============================================================================
+        
+        function playAudio(filename, url) {
+            if (currentAudio) {
+                currentAudio.pause();
+            }
+            
+            currentAudio = new Audio(url);
+            audioTrackName.textContent = filename;
+            audioPlayer.hidden = false;
+            audioPlayIcon.textContent = '||';
+            
+            currentAudio.play();
+            
+            currentAudio.addEventListener('timeupdate', () => {
+                if (currentAudio.duration) {
+                    const percent = (currentAudio.currentTime / currentAudio.duration) * 100;
+                    audioProgress.value = percent;
+                    audioCurrentTime.textContent = formatTime(currentAudio.currentTime);
+                }
+            });
+            
+            currentAudio.addEventListener('loadedmetadata', () => {
+                audioDuration.textContent = formatTime(currentAudio.duration);
+            });
+            
+            currentAudio.addEventListener('ended', () => {
+                audioPlayIcon.textContent = '▶';
+            });
+        }
+        
+        audioPlayBtn?.addEventListener('click', () => {
+            if (!currentAudio) return;
+            if (currentAudio.paused) {
+                currentAudio.play();
+                audioPlayIcon.textContent = '||';
+            } else {
+                currentAudio.pause();
+                audioPlayIcon.textContent = '▶';
+            }
+        });
+        
+        audioProgress?.addEventListener('input', () => {
+            if (currentAudio && currentAudio.duration) {
+                currentAudio.currentTime = (audioProgress.value / 100) * currentAudio.duration;
+            }
+        });
+        
+        audioCloseBtn?.addEventListener('click', () => {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
+            audioPlayer.hidden = true;
+        });
+        
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // =============================================================================
+        // Password Form
+        // =============================================================================
+        
+        passwordForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            sharePassword = passwordInput.value;
+            await loadShare();
+        });
+        
+        // =============================================================================
+        // Utility Functions
+        // =============================================================================
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0 || bytes === null || bytes === undefined) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+        
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString(undefined, { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const iconMap = {
+                'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 'webp': 'image', 
+                'svg': 'image', 'bmp': 'image', 'ico': 'image', 'tiff': 'image', 'tif': 'image',
+                'mp3': 'audio', 'wav': 'audio', 'flac': 'audio', 'aac': 'audio', 'ogg': 'audio', 
+                'm4a': 'audio', 'wma': 'audio', 'aiff': 'audio', 'aif': 'audio', 'opus': 'audio',
+                'mp4': 'video', 'mov': 'video', 'avi': 'video', 'mkv': 'video', 'webm': 'video', 
+                'wmv': 'video', 'm4v': 'video', 'ogv': 'video',
+                'pdf': 'pdf', 'doc': 'document', 'docx': 'document', 'txt': 'text', 'rtf': 'document',
+                'xls': 'spreadsheet', 'xlsx': 'spreadsheet', 'csv': 'spreadsheet',
+                'ppt': 'presentation', 'pptx': 'presentation',
+                'zip': 'archive', 'rar': 'archive', '7z': 'archive', 'tar': 'archive', 'gz': 'archive',
+                'js': 'code-js', 'ts': 'code-ts', 'py': 'code-python', 'rb': 'code-ruby', 
+                'java': 'code-java', 'c': 'code-c', 'cpp': 'code-cpp', 'h': 'code-c',
+                'go': 'code-go', 'rs': 'code-rust', 'swift': 'code-swift', 'php': 'code-php',
+                'html': 'code-html', 'css': 'code-css', 'json': 'code', 'xml': 'code',
+                'yaml': 'config', 'yml': 'config', 'toml': 'config', 'ini': 'config', 'env': 'config',
+            };
+            
+            const iconType = iconMap[ext] || 'file';
+            return `icons/${iconType}.svg`;
+        }
+    </script>
+</body>
+
+</html>

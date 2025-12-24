@@ -2,9 +2,11 @@
 # Entanglement Server - Production Dockerfile
 # =============================================================================
 #
-# This Dockerfile uses a multi-stage build for optimization:
-#   1. Builder stage: Compiles with all dev dependencies (large)
-#   2. Runner stage:  Minimal Alpine image with only runtime deps (small)
+# This Dockerfile uses cargo-chef for optimal dependency caching:
+#   1. Chef stage:   Installs cargo-chef
+#   2. Planner stage: Analyzes dependencies and creates a "recipe"
+#   3. Builder stage: Builds dependencies (cached), then builds app
+#   4. Runner stage:  Minimal Alpine image with only runtime deps
 #
 # Security Features:
 #   - Non-root user (entanglement:entanglement, uid/gid 1000)
@@ -17,59 +19,47 @@
 # =============================================================================
 
 # =============================================================================
-# STAGE 1: Builder
+# STAGE 1: Chef (install cargo-chef)
 # =============================================================================
-# WHY: Rust nightly is required for edition2024 support
-# WHY: Alpine for smaller base image and static musl builds
-FROM rustlang/rust:nightly-alpine AS builder
+FROM rustlang/rust:nightly-alpine AS chef
 
-# WHY: These packages are needed for:
-#   - musl-dev: C compiler for native dependencies
-#   - openssl-dev/openssl-libs-static: TLS support for network libs
-#   - pkgconfig: Locating system libraries during build
-RUN apk add --no-cache \
-    musl-dev \
-    openssl-dev \
-    openssl-libs-static \
-    pkgconfig
+RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig
+RUN cargo install cargo-chef --locked
 
 WORKDIR /app
 
 # =============================================================================
-# DEPENDENCY CACHING OPTIMIZATION
+# STAGE 2: Planner (analyze dependencies)
 # =============================================================================
-# WHY: Docker caches each layer. By copying ONLY dependency files first,
-#      we cache the expensive `cargo build` step. Source code changes won't
-#      invalidate this cache layer.
+FROM chef AS planner
+
 COPY Cargo.toml Cargo.lock ./
+COPY src/ src/
 
-# WHY: Cargo needs a src/main.rs to build dependencies. We create a dummy
-#      that will be replaced later. This builds all crate dependencies.
-RUN mkdir -p src && echo "fn main() {}" > src/main.rs
-
-# WHY: `--locked` ensures Cargo.lock is honored exactly. The `|| true`
-#      allows this dummy build to fail gracefully (some features may require
-#      the real code). The key is it downloads/compiles dependencies.
-RUN cargo build --release --locked 2>/dev/null || true
+# Create a "recipe" file that captures all dependency information
+RUN cargo chef prepare --recipe-path recipe.json
 
 # =============================================================================
-# SOURCE CODE BUILD
+# STAGE 3: Builder (build dependencies, then app)
 # =============================================================================
-# WHY: Now we copy the actual source. Only this layer and below will
-#      rebuild when code changes - dependencies are already cached above.
+FROM chef AS builder
+
+# Copy the recipe from planner stage
+COPY --from=planner /app/recipe.json recipe.json
+
+# Build ONLY dependencies - this layer is cached unless Cargo.toml/Cargo.lock change
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Now copy source code and build the actual application
+COPY Cargo.toml Cargo.lock ./
 COPY src/ src/
 COPY migrations/ migrations/
 
-# WHY: Touch main.rs to ensure Cargo sees it as "changed" and rebuilds
-#      (the dummy main.rs had the same mtime as the cached layer)
-RUN touch src/main.rs
-
-# WHY: Final release build with locked dependencies
+# Build the application (dependencies are already compiled and cached)
 RUN cargo build --release --locked
 
-
 # =============================================================================
-# STAGE 2: Runtime
+# STAGE 4: Runtime
 # =============================================================================
 # WHY: Start fresh with a minimal base image. The builder stage adds ~1GB
 #      of Rust/build dependencies we don't need at runtime.
@@ -115,9 +105,9 @@ USER entanglement
 WORKDIR /app
 
 # WHY: Expose the ports the server listens on
-#   - 8080: REST API
+#   - 1975: REST API
 #   - 3000: Web UI (served by darkhttpd)
-EXPOSE 8080 3000
+EXPOSE 1975 3000
 
 # WHY: entrypoint.sh handles:
 #   1. JWT_SECRET generation if not provided
