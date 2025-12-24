@@ -36,6 +36,7 @@ const ICON_NEW_FOLDER = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25
 const ICON_RENAME = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z"/></svg>';
 const ICON_DELETE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></svg>';
 const ICON_SHARE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88.1,88.1,0,0,0-85.23,66,8,8,0,0,1-15.5-4A104.12,104.12,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"/></svg>';
+const ICON_DOWNLOAD = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"/></svg>';
 
 // DOM Elements
 const loginView = document.getElementById('login-view');
@@ -375,6 +376,15 @@ function renderFileList(entries) {
                 action: () => showShareModal(entryData)
             });
 
+            // Add Download As ZIP for folders
+            if (entryData.is_folder) {
+                menuItems.push({
+                    icon: ICON_DOWNLOAD,
+                    label: 'Download As ZIP',
+                    action: () => downloadFolderAsZip(entryData)
+                });
+            }
+
             menuItems.push({ separator: true });
             menuItems.push({
                 icon: ICON_DELETE,
@@ -483,6 +493,43 @@ async function downloadFile(entry) {
         alert('Download failed: ' + error.message);
     }
 }
+
+// Download a folder as a ZIP archive
+async function downloadFolderAsZip(entry) {
+    if (!entry.is_folder) return;
+
+    // Show loading state
+    const folderName = entry.name || 'folder';
+
+    try {
+        const response = await fetch(`${API_BASE}/v1/files/download-zip?path=${encodeURIComponent(entry.path)}`, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`,
+            },
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || 'Download failed');
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `${folderName}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+    } catch (error) {
+        console.error('ZIP download error:', error);
+        alert('ZIP download failed: ' + error.message);
+    }
+}
+
 
 // =============================================================================
 // File Preview

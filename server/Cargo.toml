@@ -33,6 +33,7 @@ fastcdc = "3.1"
 
 # Compression
 zstd = "0.13"
+zip = { version = "2", features = ["deflate"] }
 
 # CLI password input
 rpassword = "7"

@@ -39,6 +39,8 @@ pub fn v1_routes() -> Router<AppState> {
         .route("/v1/files/list", get(list_directory_v1))
         // Changed since - incremental sync (must be before :id to avoid conflicts)
         .route("/v1/files/changes", get(get_file_changes))
+        // Folder download as ZIP
+        .route("/v1/files/download-zip", get(download_folder_as_zip))
         // File download - stream file content from chunks (must be before :id)
         .route("/v1/files/:version_id/download", get(download_v1_file))
         // File metadata lookup by ID
@@ -593,3 +595,166 @@ async fn download_v1_file(
         return Ok(response);
     }
 }
+
+/// Query parameters for folder zip download
+#[derive(Deserialize)]
+struct DownloadZipQuery {
+    path: String,
+}
+
+/// Download a folder as a ZIP archive
+/// GET /v1/files/download-zip?path=documents/
+///
+/// Creates a ZIP archive containing all files in the folder and streams it.
+async fn download_folder_as_zip(
+    State(state): State<AppState>,
+    Query(query): Query<DownloadZipQuery>,
+    headers: axum::http::HeaderMap,
+) -> Result<axum::response::Response, AppError> {
+    let user_id = extract_user_id(&state, &headers)?;
+    
+    // Normalize folder path
+    let folder_path = if query.path.ends_with('/') {
+        query.path.clone()
+    } else {
+        format!("{}/", query.path)
+    };
+    
+    // Validate path
+    validate_path(&folder_path)?;
+    
+    // Get folder name for zip filename
+    let folder_name = folder_path
+        .trim_end_matches('/')
+        .split('/')
+        .last()
+        .unwrap_or("download");
+    
+    let safe_folder_name: String = folder_name
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .collect();
+    let zip_filename = if safe_folder_name.is_empty() { 
+        "archive.zip".to_string() 
+    } else { 
+        format!("{}.zip", safe_folder_name) 
+    };
+    
+    // Get all files under this folder (including nested folders)
+    let all_files = files::list_files_by_user_under_path(&state.db, user_id, &folder_path).await?;
+    
+    if all_files.is_empty() {
+        return Err(AppError::NotFound("No files found in folder".into()));
+    }
+    
+    tracing::info!("Creating ZIP archive for {} with {} files", folder_path, all_files.len());
+    
+    // Build the ZIP in memory (for simplicity - could be optimized for very large folders)
+    // For very large folders, we'd want to stream directly but zip crate doesn't support async
+    let mut zip_buffer = std::io::Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut zip_buffer);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        
+        for file in &all_files {
+            // Skip folders (they're virtual)
+            if file.path.ends_with('/') {
+                continue;
+            }
+            
+            // Get version for this file
+            let version_id = match file.current_version_id {
+                Some(id) => id,
+                None => continue, // Skip files without version
+            };
+            
+            let version = match versions::get_version_ext(&state.db, version_id).await? {
+                Some(v) => v,
+                None => continue,
+            };
+            
+            // Calculate relative path within the zip
+            let relative_path = file.path.strip_prefix(&folder_path).unwrap_or(&file.path);
+            
+            // Read file content
+            let content = if version.is_chunked {
+                let chunk_list = chunks::get_version_chunks_with_location(&state.db, version.id).await?;
+                let mut file_data = Vec::with_capacity(version.size_bytes as usize);
+                
+                for (_vc, chunk) in chunk_list {
+                    match chunk.location() {
+                        ChunkLocation::Container { container_id, offset, length } => {
+                            let is_compressed = length < chunk.size_bytes;
+                            let location = blob_io::ChunkLocation {
+                                container_id,
+                                offset: offset as u64,
+                                length: length as u32,
+                                compressed: is_compressed,
+                            };
+                            match state.blob_manager.read_chunk(&location).await {
+                                Ok(data) => file_data.extend(data),
+                                Err(e) => {
+                                    tracing::warn!("Failed to read chunk for {}: {}", file.path, e);
+                                    continue;
+                                }
+                            }
+                        },
+                        ChunkLocation::Standalone { hash } => {
+                            match state.blob_manager.read_legacy_blob(&hash) {
+                                Ok(data) => file_data.extend(data),
+                                Err(e) => {
+                                    tracing::warn!("Failed to read legacy chunk for {}: {}", file.path, e);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+                file_data
+            } else {
+                // Legacy blob
+                let blob_hash = version.content_hash();
+                match state.blob_manager.read_legacy_blob(blob_hash) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        tracing::warn!("Failed to read blob for {}: {}", file.path, e);
+                        continue;
+                    }
+                }
+            };
+            
+            // Add file to zip
+            if let Err(e) = zip.start_file(relative_path, options) {
+                tracing::warn!("Failed to start zip entry for {}: {}", relative_path, e);
+                continue;
+            }
+            if let Err(e) = std::io::Write::write_all(&mut zip, &content) {
+                tracing::warn!("Failed to write zip entry for {}: {}", relative_path, e);
+                continue;
+            }
+        }
+        
+        zip.finish().map_err(|e| AppError::Internal(format!("Failed to finalize zip: {}", e)))?;
+    }
+    
+    let zip_data = zip_buffer.into_inner();
+    let zip_size = zip_data.len();
+    
+    tracing::info!("ZIP archive created: {} bytes", zip_size);
+    
+    let body = Body::from(zip_data);
+    let response = axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/zip")
+        .header(header::CONTENT_LENGTH, zip_size.to_string())
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", zip_filename),
+        )
+        .body(body)
+        .map_err(|e| AppError::Internal(format!("Failed to build response: {}", e)))?;
+    
+    Ok(response)
+}
+

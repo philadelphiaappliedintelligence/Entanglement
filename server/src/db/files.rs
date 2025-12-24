@@ -959,3 +959,31 @@ pub async fn list_directory(
     
     Ok(entries)
 }
+
+/// List all files under a path for a user (for zip download)
+/// Returns all files (not folders) recursively under the given path prefix
+pub async fn list_files_by_user_under_path(
+    pool: &DbPool,
+    user_id: Uuid,
+    path_prefix: &str,
+) -> anyhow::Result<Vec<File>> {
+    let prefix_pattern = format!("{}%", path_prefix);
+    
+    let files = sqlx::query_as::<_, File>(
+        r#"
+        SELECT id, path, current_version_id, is_deleted, created_at, updated_at, owner_id, original_hash_id
+        FROM files
+        WHERE path LIKE $1 
+          AND is_deleted = FALSE
+          AND (owner_id = $2 OR owner_id IS NULL)
+        ORDER BY path
+        "#,
+    )
+    .bind(&prefix_pattern)
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+    
+    Ok(files)
+}
+
