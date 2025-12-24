@@ -33,6 +33,7 @@ pub fn sharing_routes() -> Router<AppState> {
         // Public share access (token-based)
         .route("/share/:token", get(access_share))
         .route("/share/:token/download", get(download_shared_file))
+        .route("/share/:token/download-zip", get(download_shared_folder_as_zip))
         .route("/share/:token/contents", get(list_shared_folder_contents))
         .route("/share/:token/download/*path", get(download_shared_file_by_path))
 }
@@ -1053,3 +1054,221 @@ async fn download_shared_file_by_path(
     }
 }
 
+/// Download an entire shared folder as a ZIP archive
+/// GET /share/:token/download-zip
+async fn download_shared_folder_as_zip(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+    Query(query): Query<AccessShareQuery>,
+) -> Result<axum::response::Response, AppError> {
+    // 1. Look up share by token
+    let share = sqlx::query_as::<_, (Uuid, bool, Option<String>, Option<DateTime<Utc>>, Option<i32>, i32, bool)>(
+        r#"
+        SELECT s.file_id, s.can_download, s.password_hash, 
+               s.expires_at, s.max_downloads, s.download_count, s.is_active
+        FROM share_links s
+        WHERE s.token = $1
+        "#
+    )
+    .bind(&token)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Share link not found".into()))?;
+    
+    let (file_id, can_download, password_hash, expires_at, max_downloads, download_count, is_active) = share;
+    
+    // 2. Validate share access
+    if !is_active {
+        return Err(AppError::BadRequest("This share link has been revoked".into()));
+    }
+    
+    if !can_download {
+        return Err(AppError::Unauthorized("Download not allowed for this share".into()));
+    }
+    
+    if let Some(exp) = expires_at {
+        if exp < Utc::now() {
+            return Err(AppError::BadRequest("This share link has expired".into()));
+        }
+    }
+    
+    if let Some(max) = max_downloads {
+        if download_count >= max {
+            return Err(AppError::BadRequest("Download limit reached".into()));
+        }
+    }
+    
+    // Check password
+    if let Some(ref pw_hash) = password_hash {
+        let provided_password = query.password
+            .ok_or_else(|| AppError::Unauthorized("Password required".into()))?;
+        
+        if !auth::verify_password(&provided_password, pw_hash)? {
+            return Err(AppError::Unauthorized("Invalid password".into()));
+        }
+    }
+    
+    // 3. Get file info
+    let file = sqlx::query_as::<_, (String,)>(
+        r#"
+        SELECT f.path
+        FROM files f
+        WHERE f.id = $1 AND f.is_deleted = FALSE
+        "#
+    )
+    .bind(file_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("File not found".into()))?;
+    
+    let folder_path = file.0;
+    
+    // Must be a folder
+    if !folder_path.ends_with('/') {
+        return Err(AppError::BadRequest("This share is not a folder".into()));
+    }
+    
+    // 4. Get folder name for zip filename
+    let folder_name = folder_path
+        .trim_end_matches('/')
+        .split('/')
+        .last()
+        .unwrap_or("download");
+    
+    let safe_folder_name: String = folder_name
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .collect();
+    let zip_filename = if safe_folder_name.is_empty() { 
+        "archive.zip".to_string() 
+    } else { 
+        format!("{}.zip", safe_folder_name) 
+    };
+    
+    // 5. Get all files under this folder (no owner check for public share)
+    let all_files: Vec<crate::db::files::File> = sqlx::query_as(
+        r#"
+        SELECT id, path, current_version_id, is_deleted, created_at, updated_at, owner_id, original_hash_id
+        FROM files
+        WHERE path LIKE $1 AND is_deleted = FALSE
+        ORDER BY path
+        "#
+    )
+    .bind(format!("{}%", folder_path))
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| AppError::Internal(format!("Failed to list files: {}", e)))?;
+    
+    if all_files.is_empty() {
+        return Err(AppError::NotFound("No files found in folder".into()));
+    }
+    
+    tracing::info!("Creating shared ZIP archive for {} with {} files", folder_path, all_files.len());
+    
+    // 5. Build the ZIP in memory
+    let mut zip_buffer = std::io::Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut zip_buffer);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        
+        for f in &all_files {
+            // Skip folders (virtual)
+            if f.path.ends_with('/') {
+                continue;
+            }
+            
+            // Get version for this file
+            let version_id = match f.current_version_id {
+                Some(id) => id,
+                None => continue,
+            };
+            
+            let version = match versions::get_version_ext(&state.db, version_id).await? {
+                Some(v) => v,
+                None => continue,
+            };
+            
+            // Calculate relative path within the zip
+            let relative_path = f.path.strip_prefix(&folder_path).unwrap_or(&f.path);
+            
+            // Read file content
+            let content = if version.is_chunked {
+                let chunk_list = chunks::get_version_chunks_with_location(&state.db, version.id).await?;
+                let mut file_data = Vec::with_capacity(version.size_bytes as usize);
+                
+                for (_vc, chunk) in chunk_list {
+                    match chunk.location() {
+                        ChunkLocation::Container { container_id, offset, length } => {
+                            let is_compressed = length < chunk.size_bytes;
+                            let location = blob_io::ChunkLocation {
+                                container_id,
+                                offset: offset as u64,
+                                length: length as u32,
+                                compressed: is_compressed,
+                            };
+                            match state.blob_manager.read_chunk(&location).await {
+                                Ok(data) => file_data.extend(data),
+                                Err(e) => {
+                                    tracing::warn!("Failed to read chunk for {}: {}", f.path, e);
+                                    continue;
+                                }
+                            }
+                        },
+                        ChunkLocation::Standalone { hash } => {
+                            match state.blob_manager.read_legacy_blob(&hash) {
+                                Ok(data) => file_data.extend(data),
+                                Err(e) => {
+                                    tracing::warn!("Failed to read legacy chunk for {}: {}", f.path, e);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+                file_data
+            } else {
+                // Legacy blob
+                let blob_hash = version.content_hash();
+                match state.blob_manager.read_legacy_blob(blob_hash) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        tracing::warn!("Failed to read blob for {}: {}", f.path, e);
+                        continue;
+                    }
+                }
+            };
+            
+            // Add file to zip
+            if let Err(e) = zip.start_file(relative_path, options) {
+                tracing::warn!("Failed to start zip entry for {}: {}", relative_path, e);
+                continue;
+            }
+            if let Err(e) = std::io::Write::write_all(&mut zip, &content) {
+                tracing::warn!("Failed to write zip entry for {}: {}", relative_path, e);
+                continue;
+            }
+        }
+        
+        zip.finish().map_err(|e| AppError::Internal(format!("Failed to finalize zip: {}", e)))?;
+    }
+    
+    let zip_data = zip_buffer.into_inner();
+    let zip_size = zip_data.len();
+    
+    tracing::info!("Shared ZIP archive created: {} bytes", zip_size);
+    
+    let body = Body::from(zip_data);
+    let response = axum::response::Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/zip")
+        .header(header::CONTENT_LENGTH, zip_size.to_string())
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", zip_filename),
+        )
+        .body(body)
+        .map_err(|e| AppError::Internal(format!("Failed to build response: {}", e)))?;
+    
+    Ok(response)
+}
