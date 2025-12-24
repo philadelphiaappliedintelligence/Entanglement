@@ -1756,3 +1756,66 @@ body {
     color: var(--color-accent);
     font-weight: var(--font-weight-medium);
 }
+
+/* =============================================================================
+   Forgot Password Link
+   ============================================================================= */
+
+.forgot-password-link {
+    display: block;
+    text-align: center;
+    margin-top: 8px;
+    font-size: var(--font-size-sm);
+    color: var(--color-accent);
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+
+.forgot-password-link:hover {
+    color: var(--color-accent-hover);
+    text-decoration: underline;
+}
+
+/* =============================================================================
+   Settings Badge (Blue Dot Indicator)
+   ============================================================================= */
+
+.settings-icon-btn {
+    position: relative;
+}
+
+.settings-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
+    background-color: var(--color-accent);
+    border-radius: 50%;
+    border: 2px solid var(--color-bg-main);
+}
+
+/* =============================================================================
+   Verify Email Button
+   ============================================================================= */
+
+.verify-email-btn {
+    color: var(--color-accent) !important;
+    font-weight: var(--font-weight-medium);
+}
+
+.verify-email-btn:hover {
+    background-color: rgba(0, 102, 204, 0.1) !important;
+}
+
+/* =============================================================================
+   Footer Right - Flex Layout for Clock + WebSocket
+   ============================================================================= */
+
+.footer-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}

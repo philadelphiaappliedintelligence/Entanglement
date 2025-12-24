@@ -147,7 +147,7 @@ function setupEventListeners() {
 
     // Context menu
     setupContextMenu();
-    
+
     // Setup modal buttons (Conflicts, Sync Settings, Share)
     setupModals();
 }
@@ -351,10 +351,10 @@ function renderFileList(entries) {
 
     sorted.forEach(entry => {
         const tr = document.createElement('tr');
-        
+
         // Store entry data for context menu
         tr.dataset.entryData = JSON.stringify(entry);
-        
+
         // Right-click context menu for file/folder
         tr.addEventListener('contextmenu', (e) => {
             e.preventDefault();
@@ -367,14 +367,14 @@ function renderFileList(entries) {
                     action: () => renameItem(entryData)
                 }
             ];
-            
+
             // Add share option for files and folders
             menuItems.push({
                 icon: ICON_SHARE,
                 label: 'Share',
                 action: () => showShareModal(entryData)
             });
-            
+
             menuItems.push({ separator: true });
             menuItems.push({
                 icon: ICON_DELETE,
@@ -382,7 +382,7 @@ function renderFileList(entries) {
                 danger: true,
                 action: () => deleteItem(entryData)
             });
-            
+
             showContextMenu(e.clientX, e.clientY, menuItems);
         });
 
@@ -1447,7 +1447,7 @@ let contextMenuTarget = null; // Stores the entry data when right-clicking on a 
 function showContextMenu(x, y, items) {
     // Build menu content
     contextMenu.innerHTML = '';
-    
+
     items.forEach(item => {
         if (item.separator) {
             const sep = document.createElement('div');
@@ -1469,10 +1469,10 @@ function showContextMenu(x, y, items) {
     // Position menu, ensuring it stays within viewport
     const menuWidth = 160;
     const menuHeight = items.length * 36 + 8; // Approximate height
-    
+
     let posX = x;
     let posY = y;
-    
+
     if (x + menuWidth > window.innerWidth) {
         posX = window.innerWidth - menuWidth - 8;
     }
@@ -1516,7 +1516,7 @@ function setupContextMenu() {
             // Only handle if clicking on blank area (not on a file row)
             const row = e.target.closest('tr');
             const isHeader = e.target.closest('thead');
-            
+
             if (!row || isHeader) {
                 e.preventDefault();
                 showContextMenu(e.clientX, e.clientY, [
@@ -1547,14 +1547,14 @@ let currentShareFileId = null;
 
 function setupModals() {
     console.log('[Modals] Setting up modals...');
-    
+
     // Setup conflicts button
     const conflictsBtn = document.getElementById('conflicts-btn');
     const conflictsModal = document.getElementById('conflicts-modal');
-    
+
     console.log('[Modals] conflictsBtn:', conflictsBtn);
     console.log('[Modals] conflictsModal:', conflictsModal);
-    
+
     if (conflictsBtn && conflictsModal) {
         conflictsBtn.addEventListener('click', () => {
             console.log('[Modals] Conflicts button clicked!');
@@ -1566,14 +1566,14 @@ function setupModals() {
     } else {
         console.error('[Modals] Could not find conflicts button or modal');
     }
-    
+
     // Setup sync settings button
     const syncSettingsBtn = document.getElementById('sync-settings-btn');
     const syncSettingsModal = document.getElementById('sync-settings-modal');
-    
+
     console.log('[Modals] syncSettingsBtn:', syncSettingsBtn);
     console.log('[Modals] syncSettingsModal:', syncSettingsModal);
-    
+
     if (syncSettingsBtn && syncSettingsModal) {
         syncSettingsBtn.addEventListener('click', () => {
             console.log('[Modals] Sync Settings button clicked!');
@@ -1585,13 +1585,13 @@ function setupModals() {
     } else {
         console.error('[Modals] Could not find sync settings button or modal');
     }
-    
+
     // Setup share button
     const createShareBtn = document.getElementById('create-share-btn');
     if (createShareBtn) {
         createShareBtn.addEventListener('click', createShareLink);
     }
-    
+
     // Setup copy share link button
     const copyShareLinkBtn = document.getElementById('copy-share-link');
     if (copyShareLinkBtn) {
@@ -1607,19 +1607,19 @@ function setupModals() {
             }
         });
     }
-    
+
     // Setup add rule button
     const addRuleBtn = document.getElementById('add-rule-btn');
     if (addRuleBtn) {
         addRuleBtn.addEventListener('click', addSyncRule);
     }
-    
+
     // Setup save public URL button
     const savePublicUrlBtn = document.getElementById('save-public-url-btn');
     if (savePublicUrlBtn) {
         savePublicUrlBtn.addEventListener('click', savePublicUrl);
     }
-    
+
     // Close modal handlers
     document.querySelectorAll('.modal-close').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -1627,14 +1627,14 @@ function setupModals() {
             if (modal) modal.hidden = true;
         });
     });
-    
+
     document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
         backdrop.addEventListener('click', (e) => {
             const modal = e.target.closest('.modal');
             if (modal) modal.hidden = true;
         });
     });
-    
+
     // Setup custom selects
     setupCustomSelects();
 }
@@ -1650,51 +1650,51 @@ function setupCustomSelects() {
         const valueDisplay = select.querySelector('.custom-select-value');
         const hiddenInput = select.parentElement.querySelector('input[type="hidden"]');
         const options = select.querySelectorAll('.custom-select-option');
-        
+
         if (!trigger || !dropdown) return;
-        
+
         // Toggle dropdown on trigger click
         trigger.addEventListener('click', (e) => {
             e.stopPropagation();
             const isOpen = !dropdown.hidden;
-            
+
             // Close all other custom selects first
             document.querySelectorAll('.custom-select').forEach(s => {
                 s.classList.remove('open');
                 const d = s.querySelector('.custom-select-dropdown');
                 if (d) d.hidden = true;
             });
-            
+
             // Toggle this one
             if (!isOpen) {
                 select.classList.add('open');
                 dropdown.hidden = false;
             }
         });
-        
+
         // Handle option selection
         options.forEach(option => {
             option.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const value = option.dataset.value;
                 const text = option.textContent;
-                
+
                 // Update display
                 if (valueDisplay) valueDisplay.textContent = text;
-                
+
                 // Update hidden input
                 if (hiddenInput) hiddenInput.value = value;
-                
+
                 // Update selected state
                 options.forEach(o => o.classList.remove('selected'));
                 option.classList.add('selected');
-                
+
                 // Close dropdown
                 select.classList.remove('open');
                 dropdown.hidden = true;
             });
         });
-        
+
         // Set initial selected state
         const initialValue = hiddenInput?.value || '';
         options.forEach(option => {
@@ -1703,7 +1703,7 @@ function setupCustomSelects() {
             }
         });
     });
-    
+
     // Close dropdowns when clicking outside
     document.addEventListener('click', () => {
         document.querySelectorAll('.custom-select').forEach(select => {
@@ -1717,22 +1717,22 @@ function setupCustomSelects() {
 async function loadConflicts() {
     const conflictsList = document.getElementById('conflicts-list');
     const noConflicts = document.getElementById('no-conflicts');
-    
+
     if (!conflictsList) return;
-    
+
     conflictsList.innerHTML = '<p>Loading conflicts...</p>';
-    
+
     try {
         const response = await fetch(`${API_BASE}/conflicts`, {
             headers: {
                 'Authorization': `Bearer ${state.token}`,
             },
         });
-        
+
         if (!response.ok) throw new Error('Failed to load conflicts');
-        
+
         const data = await response.json();
-        
+
         if (data.conflicts.length === 0) {
             conflictsList.innerHTML = '';
             if (noConflicts) noConflicts.hidden = false;
@@ -1769,12 +1769,12 @@ async function resolveConflict(conflictId, resolution) {
             },
             body: JSON.stringify({ resolution }),
         });
-        
+
         if (!response.ok) throw new Error('Failed to resolve conflict');
-        
+
         // Reload conflicts list
         loadConflicts();
-        
+
     } catch (error) {
         console.error('Error resolving conflict:', error);
         alert('Failed to resolve conflict: ' + error.message);
@@ -1789,22 +1789,22 @@ function showShareModal(entry) {
     const shareModal = document.getElementById('share-modal');
     const shareForm = document.getElementById('share-form');
     const shareResult = document.getElementById('share-result');
-    
+
     if (!shareModal) return;
-    
+
     currentShareFileId = entry.id;
     if (shareForm) shareForm.hidden = false;
     if (shareResult) shareResult.hidden = true;
-    
+
     // Reset form
     const expiryEl = document.getElementById('share-expiry');
     const passwordEl = document.getElementById('share-password');
     const maxDownloadsEl = document.getElementById('share-max-downloads');
-    
+
     if (expiryEl) expiryEl.value = '';
     if (passwordEl) passwordEl.value = '';
     if (maxDownloadsEl) maxDownloadsEl.value = '';
-    
+
     // Reset custom select display
     const expirySelect = document.getElementById('share-expiry-select');
     if (expirySelect) {
@@ -1814,35 +1814,35 @@ function showShareModal(entry) {
             opt.classList.toggle('selected', opt.dataset.value === '');
         });
     }
-    
+
     shareModal.hidden = false;
 }
 
 async function createShareLink() {
     if (!currentShareFileId) return;
-    
+
     const createShareBtn = document.getElementById('create-share-btn');
     const shareForm = document.getElementById('share-form');
     const shareResult = document.getElementById('share-result');
-    
+
     const expiryHours = document.getElementById('share-expiry')?.value;
     const password = document.getElementById('share-password')?.value;
     const maxDownloads = document.getElementById('share-max-downloads')?.value;
-    
+
     if (createShareBtn) {
         createShareBtn.disabled = true;
         createShareBtn.textContent = 'Creating...';
     }
-    
+
     try {
         const body = {
             file_id: currentShareFileId,
         };
-        
+
         if (expiryHours) body.expires_in_hours = parseInt(expiryHours);
         if (password) body.password = password;
         if (maxDownloads) body.max_downloads = parseInt(maxDownloads);
-        
+
         const response = await fetch(`${API_BASE}/shares`, {
             method: 'POST',
             headers: {
@@ -1851,25 +1851,25 @@ async function createShareLink() {
             },
             body: JSON.stringify(body),
         });
-        
+
         if (!response.ok) throw new Error('Failed to create share link');
-        
+
         const data = await response.json();
-        
+
         // Show result
         if (shareForm) shareForm.hidden = true;
         if (shareResult) shareResult.hidden = false;
-        
+
         // Use custom PUBLIC_URL if set, otherwise use the server-provided URL
         const customPublicUrl = localStorage.getItem('entanglement_public_url');
         let shareUrl = data.share_url;
         if (customPublicUrl && data.token) {
             shareUrl = `${customPublicUrl}/share.html#${data.token}`;
         }
-        
+
         const shareLinkInput = document.getElementById('share-link');
         if (shareLinkInput) shareLinkInput.value = shareUrl;
-        
+
     } catch (error) {
         console.error('Error creating share:', error);
         alert('Failed to create share link: ' + error.message);
@@ -1890,14 +1890,14 @@ async function loadSyncSettings() {
     const devicesList = document.getElementById('devices-list');
     const publicUrlInput = document.getElementById('public-url-setting');
     const publicUrlHint = document.getElementById('public-url-hint');
-    
+
     // Load public URL setting from localStorage
     if (publicUrlInput) {
         const savedPublicUrl = localStorage.getItem('entanglement_public_url') || '';
         publicUrlInput.value = savedPublicUrl;
         updatePublicUrlHint(publicUrlHint, savedPublicUrl);
     }
-    
+
     // Load sync rules
     try {
         const rulesResponse = await fetch(`${API_BASE}/sync/rules`, {
@@ -1905,7 +1905,7 @@ async function loadSyncSettings() {
                 'Authorization': `Bearer ${state.token}`,
             },
         });
-        
+
         if (rulesResponse.ok) {
             const data = await rulesResponse.json();
             renderSyncRules(data.rules);
@@ -1914,7 +1914,7 @@ async function loadSyncSettings() {
         console.error('Error loading sync rules:', error);
         if (syncRulesList) syncRulesList.innerHTML = '<p class="error">Failed to load sync rules</p>';
     }
-    
+
     // Load devices
     try {
         const devicesResponse = await fetch(`${API_BASE}/sync/devices`, {
@@ -1922,7 +1922,7 @@ async function loadSyncSettings() {
                 'Authorization': `Bearer ${state.token}`,
             },
         });
-        
+
         if (devicesResponse.ok) {
             const devices = await devicesResponse.json();
             renderDevices(devices);
@@ -1936,12 +1936,12 @@ async function loadSyncSettings() {
 function renderSyncRules(rules) {
     const syncRulesList = document.getElementById('sync-rules-list');
     if (!syncRulesList) return;
-    
+
     if (rules.length === 0) {
         syncRulesList.innerHTML = '<p class="empty-hint">No sync rules configured. All files will be synced.</p>';
         return;
     }
-    
+
     syncRulesList.innerHTML = rules.map(rule => `
         <div class="sync-rule-item" data-id="${rule.id}">
             <span class="rule-type ${rule.rule_type}">${rule.rule_type}</span>
@@ -1954,12 +1954,12 @@ function renderSyncRules(rules) {
 function renderDevices(devices) {
     const devicesList = document.getElementById('devices-list');
     if (!devicesList) return;
-    
+
     if (devices.length === 0) {
         devicesList.innerHTML = '<p class="empty-hint">No devices registered.</p>';
         return;
     }
-    
+
     devicesList.innerHTML = devices.map(device => `
         <div class="device-item">
             <div class="device-info">
@@ -1974,12 +1974,12 @@ function renderDevices(devices) {
 async function addSyncRule() {
     const ruleType = document.getElementById('new-rule-type')?.value;
     const pattern = document.getElementById('new-rule-pattern')?.value?.trim();
-    
+
     if (!pattern) {
         alert('Please enter a path pattern');
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/sync/rules`, {
             method: 'POST',
@@ -1992,13 +1992,13 @@ async function addSyncRule() {
                 path_pattern: pattern,
             }),
         });
-        
+
         if (!response.ok) throw new Error('Failed to add rule');
-        
+
         const patternInput = document.getElementById('new-rule-pattern');
         if (patternInput) patternInput.value = '';
         loadSyncSettings();
-        
+
     } catch (error) {
         console.error('Error adding sync rule:', error);
         alert('Failed to add rule: ' + error.message);
@@ -2007,7 +2007,7 @@ async function addSyncRule() {
 
 async function deleteSyncRule(ruleId) {
     if (!confirm('Delete this sync rule?')) return;
-    
+
     try {
         const response = await fetch(`${API_BASE}/sync/rules/${ruleId}`, {
             method: 'DELETE',
@@ -2015,11 +2015,11 @@ async function deleteSyncRule(ruleId) {
                 'Authorization': `Bearer ${state.token}`,
             },
         });
-        
+
         if (!response.ok) throw new Error('Failed to delete rule');
-        
+
         loadSyncSettings();
-        
+
     } catch (error) {
         console.error('Error deleting sync rule:', error);
         alert('Failed to delete rule: ' + error.message);
@@ -2043,32 +2043,32 @@ function savePublicUrl() {
     const publicUrlInput = document.getElementById('public-url-setting');
     const publicUrlHint = document.getElementById('public-url-hint');
     const saveBtn = document.getElementById('save-public-url-btn');
-    
+
     if (!publicUrlInput) return;
-    
+
     let url = publicUrlInput.value.trim();
-    
+
     // Remove trailing slash if present
     if (url.endsWith('/')) {
         url = url.slice(0, -1);
     }
-    
+
     // Validate URL if provided
     if (url && !url.match(/^https?:\/\/.+/)) {
         alert('Please enter a valid URL starting with http:// or https://');
         return;
     }
-    
+
     // Save to localStorage
     if (url) {
         localStorage.setItem('entanglement_public_url', url);
     } else {
         localStorage.removeItem('entanglement_public_url');
     }
-    
+
     // Update hint
     updatePublicUrlHint(publicUrlHint, url);
-    
+
     // Show confirmation
     if (saveBtn) {
         const originalText = saveBtn.textContent;
@@ -2093,6 +2093,160 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// =============================================================================
+// Forgot Password
+// =============================================================================
+
+const forgotPasswordLink = document.getElementById('forgot-password-link');
+
+if (forgotPasswordLink) {
+    forgotPasswordLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+
+        const email = document.getElementById('email').value.trim();
+        if (!email) {
+            loginError.textContent = 'Please enter your email address first';
+            loginError.hidden = false;
+            return;
+        }
+
+        forgotPasswordLink.textContent = 'Sending...';
+        forgotPasswordLink.style.pointerEvents = 'none';
+
+        try {
+            const response = await fetch(`${API_BASE}/auth/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+
+            // Always show success to prevent email enumeration
+            loginError.style.backgroundColor = 'rgba(52, 199, 89, 0.1)';
+            loginError.style.color = '#34c759';
+            loginError.textContent = 'If an account exists, a reset link has been sent.';
+            loginError.hidden = false;
+
+            // In debug mode, the server returns the token
+            if (response.ok) {
+                const data = await response.json();
+                if (data.debug_token) {
+                    console.log('[Debug] Reset token:', data.debug_token);
+                }
+            }
+
+        } catch (error) {
+            // Still show success to prevent enumeration
+            loginError.style.backgroundColor = 'rgba(52, 199, 89, 0.1)';
+            loginError.style.color = '#34c759';
+            loginError.textContent = 'If an account exists, a reset link has been sent.';
+            loginError.hidden = false;
+        } finally {
+            forgotPasswordLink.textContent = 'Forgot password?';
+            forgotPasswordLink.style.pointerEvents = 'auto';
+
+            // Reset error style after 5 seconds
+            setTimeout(() => {
+                loginError.style.backgroundColor = '';
+                loginError.style.color = '';
+                loginError.hidden = true;
+            }, 5000);
+        }
+    });
+}
+
+// =============================================================================
+// Email Verification
+// =============================================================================
+
+const settingsBadge = document.getElementById('settings-badge');
+const verifyEmailBtn = document.getElementById('verify-email-btn');
+
+// Check email verification status and update UI
+async function checkEmailVerificationStatus() {
+    if (!state.token) return;
+
+    try {
+        // Try to get user info (we'll use a simple check - the server doesn't have a dedicated endpoint yet)
+        // For now, we'll show the verification option always and let the server handle it
+        // This could be enhanced to check actual status via a /auth/me endpoint
+
+        // Show verification option - in a real implementation, check email_verified status
+        // For now, always show the option so users can resend verification if needed
+        if (settingsBadge) settingsBadge.hidden = false;
+        if (verifyEmailBtn) verifyEmailBtn.hidden = false;
+
+    } catch (error) {
+        console.warn('Could not check verification status:', error);
+    }
+}
+
+if (verifyEmailBtn) {
+    verifyEmailBtn.addEventListener('click', async () => {
+        verifyEmailBtn.textContent = 'Sending...';
+        verifyEmailBtn.disabled = true;
+
+        try {
+            const response = await fetch(`${API_BASE}/auth/send-verification`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${state.token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                verifyEmailBtn.textContent = 'Email Sent!';
+                verifyEmailBtn.style.color = '#34c759';
+
+                // In debug mode, log the token
+                if (data.debug_token) {
+                    console.log('[Debug] Verification token:', data.debug_token);
+                }
+
+                // Hide badge after successful send
+                if (settingsBadge) settingsBadge.hidden = true;
+
+                setTimeout(() => {
+                    verifyEmailBtn.textContent = 'Verify Email';
+                    verifyEmailBtn.style.color = '';
+                    verifyEmailBtn.hidden = true;
+                }, 3000);
+            } else {
+                const data = await response.json().catch(() => ({}));
+                if (data.message && data.message.includes('already verified')) {
+                    verifyEmailBtn.textContent = 'Already Verified ✓';
+                    verifyEmailBtn.style.color = '#34c759';
+                    if (settingsBadge) settingsBadge.hidden = true;
+                } else {
+                    verifyEmailBtn.textContent = 'Failed';
+                    verifyEmailBtn.style.color = '#ff3b30';
+                }
+                setTimeout(() => {
+                    verifyEmailBtn.textContent = 'Verify Email';
+                    verifyEmailBtn.style.color = '';
+                }, 2000);
+            }
+
+        } catch (error) {
+            console.error('Verification error:', error);
+            verifyEmailBtn.textContent = 'Failed';
+            setTimeout(() => {
+                verifyEmailBtn.textContent = 'Verify Email';
+            }, 2000);
+        } finally {
+            verifyEmailBtn.disabled = false;
+        }
+    });
+}
+
+// Patch showBrowser to check verification status
+const originalShowBrowser = showBrowser;
+showBrowser = function () {
+    originalShowBrowser();
+    checkEmailVerificationStatus();
+};
 
 // =============================================================================
 // Start

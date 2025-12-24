@@ -31,6 +31,7 @@
                 </div>
                 <div id="login-error" class="error-message" hidden></div>
                 <button type="submit" class="btn-primary">Sign In</button>
+                <a href="#" id="forgot-password-link" class="forgot-password-link">Forgot password?</a>
             </form>
             <footer class="login-footer">
                 <span class="status-indicator"></span>
@@ -55,9 +56,11 @@
                                 d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
                             </path>
                         </svg>
+                        <span id="settings-badge" class="settings-badge" hidden></span>
                     </button>
                     <div id="user-dropdown" class="user-dropdown" hidden>
                         <div class="dropdown-header" id="user-email"></div>
+                        <button id="verify-email-btn" class="dropdown-item verify-email-btn" hidden>Verify Email</button>
                         <div class="dropdown-toggle">
                             <span>Dark Mode</span>
                             <div id="theme-toggle" class="toggle-switch"></div>
@@ -76,9 +79,7 @@
             <!-- Label removed for cleaner look -->
             <div id="breadcrumb" class="breadcrumb"></div>
             <div class="toolbar">
-                <span id="ws-status" class="ws-status" title="Real-time sync status">
-                    <span class="ws-dot"></span>
-                </span>
+                <!-- Toolbar items if needed -->
             </div>
         </nav>
 
@@ -110,6 +111,9 @@
             </div>
             <div class="footer-right">
                 <span id="current-time"></span>
+                <span id="ws-status" class="ws-status" title="Real-time sync status">
+                    <span class="ws-dot"></span>
+                </span>
             </div>
         </footer>
 
