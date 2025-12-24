@@ -1275,6 +1275,7 @@ body {
         opacity: 0;
         transform: scale(0.95) translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: scale(1) translateY(0);
@@ -1725,6 +1726,7 @@ body {
         opacity: 0;
         transform: scale(0.95) translateY(-4px);
     }
+
     to {
         opacity: 1;
         transform: scale(1) translateY(0);
@@ -1764,16 +1766,15 @@ body {
 .forgot-password-link {
     display: block;
     text-align: center;
-    margin-top: 8px;
-    font-size: var(--font-size-sm);
-    color: var(--color-accent);
+    margin-top: 16px;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
     text-decoration: none;
     transition: color 0.15s ease;
 }
 
 .forgot-password-link:hover {
-    color: var(--color-accent-hover);
-    text-decoration: underline;
+    color: var(--color-text-primary);
 }
 
 /* =============================================================================
