@@ -56,7 +56,7 @@ It ships with a Rust server, Rust CLI client, macOS native client (with FileProv
 |-----------|----------|-------------|
 | `server/` — **tangled** | Rust | REST API server, WebSocket notifications, PostgreSQL backend |
 | `client/cli/` — **tangle** | Rust | CLI sync client with background daemon and file watcher |
-| `client/macos/` | Swift/SwiftUI | macOS native client with FileProvider virtual filesystem |
+| **macOS client** | Swift/SwiftUI | Native macOS app with FileProvider — [available separately](https://github.com/philadelphiaappliedintelligence/Entanglement-macOS) |
 | `server/web/` | Vanilla JS | Single-page web UI for file browsing, uploads, sharing, and admin |
 
 ### Data Model
@@ -138,7 +138,7 @@ cargo build --release
 
 ### macOS Client
 
-Open `client/macos/Entanglement/Entanglement.xcodeproj` in Xcode and build. The app registers a FileProvider extension that integrates with Finder for transparent file sync.
+The native macOS app with Finder integration via FileProvider is available separately. See [Entanglement for macOS](https://github.com/philadelphiaappliedintelligence/Entanglement-macOS).
 
 ---
 
@@ -374,19 +374,8 @@ Entanglement/
 │   │       ├── db.rs                # Local SQLite for sync state
 │   │       ├── config.rs            # TOML config (~/.config/entanglement/)
 │   │       └── daemon.rs            # Background daemon mode
-│   │
-│   └── macos/Entanglement/          # macOS native client
-│       ├── Entanglement/            # Main app target (SwiftUI)
-│       ├── EntanglementCore/        # Shared framework
-│       ├── EntanglementFileProvider/ # FileProvider extension
-│       │   ├── FileProviderExtension.swift
-│       │   ├── SyncEngine.swift
-│       │   ├── ChunkingEngine.swift
-│       │   └── Crypto/BLAKE3.swift
-│       └── Entanglement.xcodeproj
 │
 ├── scripts/                         # Build and setup scripts
-├── .github/workflows/               # CI (server tests, CLI build, Docker, macOS)
 ├── Cargo.toml                       # Workspace manifest
 ├── Makefile                         # Docker shortcuts (up, down, logs, clean)
 └── .env.example                     # Environment variable template
@@ -401,7 +390,6 @@ Entanglement/
 - Rust 1.75+ (2021 edition)
 - PostgreSQL 16
 - Docker & Docker Compose (optional, for containerized setup)
-- Xcode 15.4+ (macOS client only)
 
 ### Build & Test
 
@@ -421,11 +409,6 @@ cargo clippy -- -D warnings
 cd client/cli
 cargo build
 cargo test --verbose
-
-# macOS client
-cd client/macos/Entanglement
-xcodebuild build -project Entanglement.xcodeproj -scheme Entanglement
-xcodebuild test -project Entanglement.xcodeproj -scheme Entanglement
 ```
 
 ### Docker
@@ -457,7 +440,6 @@ GitHub Actions runs on every push and PR to `main`:
 | **cli-tests** | Build and test the CLI client |
 | **workspace-check** | Full workspace build and test |
 | **docker** | Build Docker image, start stack, health check |
-| **macos** | Xcode build + test (triggered on `client/macos/**` changes) |
 
 ---
 
