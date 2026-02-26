@@ -1,7 +1,5 @@
 //! Entanglement File Sync Server (tangled)
 
-#![allow(unused_imports)]
-
 use clap::{Parser, Subcommand};
 use std::fs;
 use std::path::PathBuf;
@@ -397,13 +395,11 @@ async fn reset_database(config: &Config, force: bool) -> anyhow::Result<()> {
     println!("resetting database...");
     let pool = db::create_pool(&config.database_url).await?;
     
-    sqlx::raw_sql(
-        r#"
-        DROP TABLE IF EXISTS sync_cursors CASCADE;
-        DROP TABLE IF EXISTS versions CASCADE;
-        DROP TABLE IF EXISTS files CASCADE;
-        DROP TABLE IF EXISTS users CASCADE;
-        "#,
+    sqlx::query(
+        "DROP TABLE IF EXISTS sync_cursors CASCADE;
+         DROP TABLE IF EXISTS versions CASCADE;
+         DROP TABLE IF EXISTS files CASCADE;
+         DROP TABLE IF EXISTS users CASCADE;",
     )
     .execute(&pool)
     .await?;

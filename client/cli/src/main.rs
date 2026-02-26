@@ -1,21 +1,18 @@
 use clap::{Parser, Subcommand};
-use std::fs;
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
+mod chunking;
 mod config;
+mod daemon;
 mod db;
 mod sync;
-mod tui;
-mod watch;
 
 use config::Config;
 
 #[derive(Parser)]
 #[command(name = "tangle")]
-#[command(about = "Entanglement file sync client", long_about = None)]
+#[command(about = "Entanglement file sync client")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -23,65 +20,31 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Interactive setup wizard
+    /// Interactive setup (server URL + login)
     Setup,
-    /// Start syncing in background
+    /// Start background sync daemon
     Start {
         /// Run in foreground (don't daemonize)
         #[arg(long)]
         foreground: bool,
     },
-    /// Stop syncing
-    Down,
-    /// Show sync status
+    /// Stop sync daemon
+    Stop,
+    /// Show daemon status and sync state
     Status,
-    /// Logout and clear credentials
-    Logout,
-    /// List remote files
+    /// List synced files
     Ls {
-        /// Remote path prefix
+        /// Path prefix filter
         #[arg(default_value = "/")]
         path: String,
     },
     /// Show version history for a file
     History {
-        /// Remote path
+        /// File path
         path: String,
     },
-}
-
-fn pid_file() -> PathBuf {
-    dirs::runtime_dir()
-        .or_else(|| dirs::data_local_dir())
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("tangle.pid")
-}
-
-fn is_sync_running() -> Option<u32> {
-    let pid_path = pid_file();
-    if pid_path.exists() {
-        if let Ok(pid_str) = fs::read_to_string(&pid_path) {
-            if let Ok(pid) = pid_str.trim().parse::<u32>() {
-                #[cfg(unix)]
-                {
-                    let result = Command::new("kill")
-                        .args(["-0", &pid.to_string()])
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .status();
-                    if result.map(|s| s.success()).unwrap_or(false) {
-                        return Some(pid);
-                    }
-                }
-                #[cfg(not(unix))]
-                {
-                    return Some(pid);
-                }
-            }
-        }
-        let _ = fs::remove_file(&pid_path);
-    }
-    None
+    /// Clear credentials and stop syncing
+    Logout,
 }
 
 #[tokio::main]
@@ -89,35 +52,38 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let config = Config::load()?;
 
-    // Commands that don't need full init
+    // Commands that don't need logging
     match &cli.command {
-        Some(Commands::Down) => {
-            return stop_sync();
-        }
+        Some(Commands::Stop) => return daemon::stop(),
         Some(Commands::Start { foreground }) if !foreground => {
             if !config.is_configured() {
                 println!("not configured. run: tangle setup");
                 return Ok(());
             }
-            return start_daemon();
+            let pid = daemon::start()?;
+            println!("tangle started (pid {})", pid);
+            if let Some(dir) = &config.sync_directory {
+                println!("syncing: {}", dir);
+            }
+            return Ok(());
         }
         None => {
-            // Default: start syncing if configured, otherwise setup
             if config.is_configured() {
-                if is_sync_running().is_some() {
-                    println!("tangle already running");
+                if let Some(pid) = daemon::check_running()? {
+                    println!("tangle already running (pid {})", pid);
                     return Ok(());
                 }
-                return start_daemon();
-            } else {
-                tui::run_setup().await?;
+                let pid = daemon::start()?;
+                println!("tangle started (pid {})", pid);
                 return Ok(());
+            } else {
+                return run_setup().await;
             }
         }
         _ => {}
     }
 
-    // Initialize logging for foreground commands
+    // Initialize logging for foreground/interactive commands
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -127,97 +93,124 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     match cli.command {
-        Some(Commands::Setup) => {
-            tui::run_setup().await?;
+        Some(Commands::Setup) => run_setup().await,
+        Some(Commands::Start { .. }) => {
+            // Foreground mode
+            config.require_auth()?;
+            daemon::write_pid(std::process::id())?;
+            let result = sync::run(&config).await;
+            let _ = daemon::remove_pid();
+            result
         }
-        Some(Commands::Start { foreground: _ }) => {
-            // Running in foreground mode
-            start_sync_foreground(&config).await?;
-        }
-        Some(Commands::Down) => unreachable!(),
-        Some(Commands::Status) => {
-            status(&config)?;
-        }
-        Some(Commands::Logout) => {
-            logout()?;
-        }
-        Some(Commands::Ls { path }) => {
-            list(&config, &path).await?;
-        }
-        Some(Commands::History { path }) => {
-            history(&config, &path).await?;
-        }
+        Some(Commands::Stop) => unreachable!(),
+        Some(Commands::Status) => cmd_status(&config),
+        Some(Commands::Ls { path }) => cmd_list(&config, &path).await,
+        Some(Commands::History { path }) => cmd_history(&config, &path).await,
+        Some(Commands::Logout) => cmd_logout(),
         None => unreachable!(),
     }
-
-    Ok(())
 }
 
-fn start_daemon() -> anyhow::Result<()> {
-    if let Some(pid) = is_sync_running() {
-        println!("tangle already running (pid {})", pid);
-        return Ok(());
-    }
+async fn run_setup() -> anyhow::Result<()> {
+    println!("entanglement setup");
+    println!();
 
-    let config = Config::load()?;
-    let exe = std::env::current_exe()?;
-    
-    let child = Command::new(&exe)
-        .args(["start", "--foreground"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
-
-    let pid = child.id();
-    
-    let pid_path = pid_file();
-    if let Some(parent) = pid_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(&pid_path, pid.to_string())?;
-
-    println!("tangle syncing {}", config.sync_root.as_deref().unwrap_or(""));
-    println!("pid: {}", pid);
-
-    Ok(())
-}
-
-fn stop_sync() -> anyhow::Result<()> {
-    if let Some(pid) = is_sync_running() {
-        #[cfg(unix)]
-        {
-            Command::new("kill")
-                .args([&pid.to_string()])
-                .status()?;
-        }
-        #[cfg(not(unix))]
-        {
-            Command::new("taskkill")
-                .args(["/PID", &pid.to_string(), "/F"])
-                .status()?;
-        }
-        
-        let _ = fs::remove_file(pid_file());
-        println!("tangle stopped");
+    // Server URL
+    let server_url = prompt("server url")?;
+    let server_url = if server_url.starts_with("http") {
+        server_url
     } else {
-        println!("tangle not running");
-    }
+        format!("http://{}", server_url)
+    };
+
+    // Test connection
+    print!("connecting... ");
+    let client = api::ApiClient::new(&server_url);
+    let info = client.get_server_info().await?;
+    println!("connected to {} (v{})", info.name, info.version);
+
+    // Login
+    let username = prompt("username")?;
+    let password = rpassword::prompt_password("password: ")?;
+
+    print!("logging in... ");
+    let tokens = client.login(&username, &password).await?;
+    println!("ok");
+
+    // Sync directory
+    let default_dir = dirs::home_dir()
+        .map(|h| h.join("Sync").to_string_lossy().to_string())
+        .unwrap_or_else(|| "~/Sync".to_string());
+
+    let sync_dir = prompt_default("sync directory", &default_dir)?;
+    let sync_dir = expand_tilde(&sync_dir);
+
+    std::fs::create_dir_all(&sync_dir)?;
+    println!("sync directory: {}", sync_dir);
+
+    // Save config
+    let config = Config {
+        server_url: Some(server_url),
+        username: Some(username),
+        auth_token: Some(tokens.token),
+        refresh_token: Some(tokens.refresh_token),
+        sync_directory: Some(sync_dir),
+    };
+    config.save()?;
+
+    println!();
+    println!("setup complete! run 'tangle start' to begin syncing.");
     Ok(())
 }
 
-fn status(config: &Config) -> anyhow::Result<()> {
-    if let Some(server) = &config.server_url {
-        println!("server: {} ({})", config.server_name.as_deref().unwrap_or("unknown"), server);
-        
-        if let Some(sync_root) = &config.sync_root {
-            println!("folder: {}", sync_root);
+fn prompt(label: &str) -> anyhow::Result<String> {
+    use std::io::{self, Write};
+    print!("{}: ", label);
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    let trimmed = input.trim().to_string();
+    if trimmed.is_empty() {
+        anyhow::bail!("{} is required", label);
+    }
+    Ok(trimmed)
+}
+
+fn prompt_default(label: &str, default: &str) -> anyhow::Result<String> {
+    use std::io::{self, Write};
+    print!("{} [{}]: ", label, default);
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        Ok(default.to_string())
+    } else {
+        Ok(trimmed.to_string())
+    }
+}
+
+fn expand_tilde(path: &str) -> String {
+    if path.starts_with("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(&path[2..]).to_string_lossy().to_string();
         }
-        
-        if let Some(pid) = is_sync_running() {
-            println!("sync: running (pid {})", pid);
-        } else {
-            println!("sync: stopped");
+    }
+    path.to_string()
+}
+
+fn cmd_status(config: &Config) -> anyhow::Result<()> {
+    if let Some(server) = &config.server_url {
+        println!("server: {}", server);
+        if let Some(user) = &config.username {
+            println!("user: {}", user);
+        }
+        if let Some(dir) = &config.sync_directory {
+            println!("sync: {}", dir);
+        }
+        match daemon::check_running()? {
+            Some(pid) => println!("daemon: running (pid {})", pid),
+            None => println!("daemon: stopped"),
         }
     } else {
         println!("not configured");
@@ -226,90 +219,61 @@ fn status(config: &Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn logout() -> anyhow::Result<()> {
-    // Stop sync first
-    if is_sync_running().is_some() {
-        stop_sync()?;
-    }
-    
-    let mut config = Config::load()?;
-    config.token = None;
-    config.user_id = None;
-    config.save()?;
-    println!("logged out");
-    Ok(())
-}
-
-async fn start_sync_foreground(config: &Config) -> anyhow::Result<()> {
+async fn cmd_list(config: &Config, _prefix: &str) -> anyhow::Result<()> {
     config.require_auth()?;
-    
-    let sync_root = config.sync_root.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("No sync folder configured. Run: tangle setup"))?;
-    
-    let path = std::path::Path::new(sync_root);
-    if !path.exists() {
-        std::fs::create_dir_all(path)?;
-    }
+    let client = api::ApiClient::new(config.server_url()?);
+    let files = client.list_files(config.auth_token()?).await?;
 
-    // Save PID
-    let pid_path = pid_file();
-    if let Some(parent) = pid_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(&pid_path, std::process::id().to_string())?;
-    
-    // Initial sync
-    sync::sync_directory(config, path).await?;
-    
-    // Then watch for changes
-    let result = watch::start_watching(config, path).await;
-    
-    // Cleanup PID file
-    let _ = fs::remove_file(pid_file());
-    
-    result
-}
-
-async fn list(config: &Config, prefix: &str) -> anyhow::Result<()> {
-    config.require_auth()?;
-    
-    let mut client = api::GrpcClient::connect(config).await?;
-    let files = client.list_files(prefix).await?;
-    
     if files.is_empty() {
         println!("no files");
         return Ok(());
     }
-    
+
     for file in files {
+        if file.is_deleted {
+            continue;
+        }
         let size = format_size(file.size_bytes as u64);
-        let deleted = if file.is_deleted { " [deleted]" } else { "" };
-        println!("{:>10}  {}{}", size, file.path, deleted);
+        let kind = if file.is_directory { "d" } else { "-" };
+        println!("{} {:>10}  {}", kind, size, file.path);
     }
-    
     Ok(())
 }
 
-async fn history(config: &Config, path: &str) -> anyhow::Result<()> {
+async fn cmd_history(config: &Config, path: &str) -> anyhow::Result<()> {
     config.require_auth()?;
-    
-    let mut client = api::GrpcClient::connect(config).await?;
-    let versions = client.list_versions(path).await?;
-    
+    let client = api::ApiClient::new(config.server_url()?);
+    let token = config.auth_token()?;
+
+    // Find file by path
+    let files = client.list_files(token).await?;
+    let normalized = format!("/{}", path.trim_start_matches('/'));
+    let file = files
+        .iter()
+        .find(|f| f.path == normalized || f.path == path)
+        .ok_or_else(|| anyhow::anyhow!("File not found: {}", path))?;
+
+    let versions = client.get_file_versions(token, file.id).await?;
     if versions.is_empty() {
-        println!("no versions found");
+        println!("no versions");
         return Ok(());
     }
-    
+
     println!("versions of {}:", path);
     for v in versions {
-        let time = chrono::DateTime::from_timestamp(v.created_at, 0)
-            .map(|t| t.format("%Y-%m-%d %H:%M:%S").to_string())
-            .unwrap_or_else(|| "unknown".to_string());
         let size = format_size(v.size_bytes as u64);
-        println!("  {}  {}  {}", &v.version_id[..8], time, size);
+        println!("  {}  {}  {}", &v.id.to_string()[..8], v.created_at, size);
     }
-    
+    Ok(())
+}
+
+fn cmd_logout() -> anyhow::Result<()> {
+    let _ = daemon::stop();
+    let mut config = Config::load()?;
+    config.auth_token = None;
+    config.refresh_token = None;
+    config.save()?;
+    println!("logged out");
     Ok(())
 }
 
@@ -317,7 +281,7 @@ fn format_size(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = KB * 1024;
     const GB: u64 = MB * 1024;
-    
+
     if bytes >= GB {
         format!("{:.1} GB", bytes as f64 / GB as f64)
     } else if bytes >= MB {

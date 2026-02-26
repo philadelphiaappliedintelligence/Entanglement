@@ -51,4 +51,3 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             -skip-testing:EntanglementUITests
-        continue-on-error: true

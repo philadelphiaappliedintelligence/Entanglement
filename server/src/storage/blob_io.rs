@@ -201,7 +201,7 @@ impl BlobManager {
             *guard = Some(new_container);
         }
 
-        Ok(guard.as_mut().unwrap())
+        guard.as_mut().ok_or_else(|| anyhow!("No open container available after creation"))
     }
 
     /// Create a new container file

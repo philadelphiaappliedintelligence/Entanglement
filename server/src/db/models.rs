@@ -5,8 +5,6 @@
 //!
 //! Many structs are reserved for future tiered storage and advanced sync features.
 
-#![allow(dead_code)]
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

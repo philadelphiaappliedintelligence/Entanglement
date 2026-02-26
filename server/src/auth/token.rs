@@ -68,10 +68,11 @@ pub fn create_refresh_token(secret: &str, user_id: Uuid) -> anyhow::Result<Strin
 
 /// Verify a JWT token and extract the user ID
 pub fn verify_token(secret: &str, token: &str) -> anyhow::Result<Uuid> {
+    // SECURITY: Explicit algorithm prevents algorithm confusion attacks
     let token_data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &Validation::new(jsonwebtoken::Algorithm::HS256),
     )?;
 
     let user_id = Uuid::parse_str(&token_data.claims.sub)?;
@@ -81,10 +82,11 @@ pub fn verify_token(secret: &str, token: &str) -> anyhow::Result<Uuid> {
 /// Verify a refresh token and extract the user ID
 /// Returns an error if the token is not a refresh token
 pub fn verify_refresh_token(secret: &str, token: &str) -> anyhow::Result<Uuid> {
+    // SECURITY: Explicit algorithm prevents algorithm confusion attacks
     let token_data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &Validation::new(jsonwebtoken::Algorithm::HS256),
     )?;
 
     if token_data.claims.token_type != "refresh" {
@@ -114,6 +116,62 @@ mod tests {
     fn test_invalid_token() {
         let secret = "test_secret";
         let result = verify_token(secret, "invalid_token");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_access_token_is_valid_access_type() {
+        let secret = "test_secret";
+        let user_id = Uuid::new_v4();
+        let token = create_access_token(secret, user_id).unwrap();
+        let extracted_id = verify_token(secret, &token).unwrap();
+        assert_eq!(user_id, extracted_id);
+    }
+
+    #[test]
+    fn test_refresh_token_roundtrip() {
+        let secret = "test_secret";
+        let user_id = Uuid::new_v4();
+        let token = create_refresh_token(secret, user_id).unwrap();
+        let extracted_id = verify_refresh_token(secret, &token).unwrap();
+        assert_eq!(user_id, extracted_id);
+    }
+
+    #[test]
+    fn test_access_token_rejected_as_refresh() {
+        let secret = "test_secret";
+        let user_id = Uuid::new_v4();
+        let token = create_access_token(secret, user_id).unwrap();
+        let result = verify_refresh_token(secret, &token);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_expired_token_rejected() {
+        let secret = "test_secret";
+        let user_id = Uuid::new_v4();
+        let past = Utc::now() - Duration::hours(48);
+        let claims = Claims {
+            sub: user_id.to_string(),
+            exp: past.timestamp(),
+            iat: (past - Duration::hours(1)).timestamp(),
+            token_type: "access".to_string(),
+        };
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(secret.as_bytes()),
+        )
+        .unwrap();
+        let result = verify_token(secret, &token);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_wrong_secret_rejected() {
+        let user_id = Uuid::new_v4();
+        let token = create_access_token("secret_one", user_id).unwrap();
+        let result = verify_token("secret_two", &token);
         assert!(result.is_err());
     }
 }

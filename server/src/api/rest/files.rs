@@ -153,11 +153,11 @@ async fn get_file(
     Path(id): Path<String>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<FileResponse>, AppError> {
-    let _user_id = extract_user_id(&state, &headers)?;
+    let user_id = extract_user_id(&state, &headers)?;
 
     let file = if let Ok(file_id) = Uuid::parse_str(&id) {
-        // Try UUID first (regular files)
-        files::get_file_by_id_global(&state.db, file_id)
+        // Try UUID first (regular files) - with ownership check
+        files::get_file_by_id_with_owner(&state.db, file_id, user_id)
             .await?
             .ok_or_else(|| AppError::NotFound("File not found".into()))?
     } else if id.len() == 64 && id.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -165,8 +165,8 @@ async fn get_file(
 
         // 1. Check if we have a real record that "claims" this hash (Sticky ID lookup)
         if let Some(file) = files::get_file_by_original_hash(&state.db, &id).await? {
-            // Found materialized folder via Sticky ID
-            files::get_file_by_id_global(&state.db, file.id)
+            // Found materialized folder via Sticky ID - with ownership check
+            files::get_file_by_id_with_owner(&state.db, file.id, user_id)
                 .await?
                 .ok_or_else(|| AppError::NotFound("File not found".into()))?
         } else {
@@ -411,8 +411,8 @@ async fn delete_file(
         return Err(AppError::BadRequest("Invalid file ID".into()));
     };
     
-    // Get file info before deletion for notification
-    let file_info = files::get_file_by_id_global(&state.db, file_id)
+    // Get file info before deletion for notification (with ownership check)
+    let file_info = files::get_file_by_id_with_owner(&state.db, file_id, user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("File not found".into()))?;
 
@@ -434,14 +434,15 @@ async fn download_file(
     Path(id): Path<String>,
     headers: axum::http::HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
-    let _user_id = extract_user_id(&state, &headers)?;
+    let user_id = extract_user_id(&state, &headers)?;
 
     tracing::info!("Download request for file ID: {}", id);
 
     let file_id = Uuid::parse_str(&id)
         .map_err(|_| AppError::BadRequest("Invalid file ID".into()))?;
 
-    let file = files::get_file_by_id_global(&state.db, file_id)
+    // SECURITY: Use ownership-checked lookup for user-facing downloads
+    let file = files::get_file_by_id_with_owner(&state.db, file_id, user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("File not found".into()))?;
     

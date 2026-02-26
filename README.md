@@ -1,30 +1,76 @@
 # Entanglement
 
-A secure file synchronization service with a macOS client and Rust server.
+A file synchronization service with content-defined chunking for efficient delta sync. Built with a Rust server, Rust CLI client, macOS native client, and vanilla JS web UI.
 
-## Quick Start with Docker
+## Architecture
+
+- **Content-addressed storage** with BLAKE3 hashing and FastCDC chunking
+- **Immutable versioning** — every file modification creates a new version
+- **Tiered chunking** — 5 tiers from Inline (<4KB) to Jumbo (>5GB) for optimal deduplication
+- **Append-only blob containers** (packfiles, 64MB max) with zstd compression
+- **Cross-chunk deduplication** by hash and reference counting
+
+### Components
+
+| Component | Language | Description |
+|-----------|----------|-------------|
+| `server/` (tangled) | Rust | REST API server with PostgreSQL backend |
+| `client/cli/` (tangle) | Rust | CLI sync client with background daemon |
+| `client/macos/` | Swift/SwiftUI | macOS native client with FileProvider extension |
+| `server/web/` | Vanilla JS | Web UI for file browsing, uploads, and admin |
+
+## Quick Start
+
+### Docker (recommended)
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/entanglement.git
-cd entanglement
+git clone https://github.com/philadelphiaappliedintelligence/Entanglement.git
+cd Entanglement
 
-# Copy and configure environment (recommended for production)
-cp env.example .env
-# Edit .env and set JWT_SECRET for production:
-# JWT_SECRET=$(openssl rand -hex 32)
+cp .env.example .env
+# Edit .env and set JWT_SECRET:
+#   JWT_SECRET=$(openssl rand -hex 32)
 
-# Start the services
-docker compose up -d
-
-# Check status
-docker compose ps
-docker compose logs -f server
+make up          # Start PostgreSQL + server
+make logs        # Tail server logs
 ```
 
 The server will be available at:
-- **Web UI:** http://localhost:3000
 - **REST API:** http://localhost:1975
+- **Web UI:** http://localhost:3000
+
+### Create your first user
+
+```bash
+# Via CLI (if running locally)
+cargo run -p tangled -- user create --username admin --admin
+
+# Or use the TUI setup wizard
+cargo run -p tangled -- setup
+```
+
+### From source
+
+```bash
+# Server
+cd server
+export JWT_SECRET=$(openssl rand -hex 32)
+export DATABASE_URL=postgres://entanglement:entanglement@localhost:5432/entanglement
+cargo run -- serve --foreground
+
+# CLI client
+cd client/cli
+cargo build --release
+./target/release/tangle setup    # Configure server URL + login
+./target/release/tangle start    # Start background sync daemon
+./target/release/tangle status   # Check sync status
+./target/release/tangle ls       # List synced files
+./target/release/tangle stop     # Stop daemon
+```
+
+### macOS client
+
+Open `client/macos/Entanglement/Entanglement.xcodeproj` in Xcode and build.
 
 ## Configuration
 
@@ -32,62 +78,65 @@ The server will be available at:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `JWT_SECRET` | **Yes** (production) | Auto-generated | Secret for signing JWT tokens. Generate with `openssl rand -hex 32` |
-| `POSTGRES_PASSWORD` | No | `entanglement` | Database password |
+| `JWT_SECRET` | **Yes** | — | JWT signing key. Generate: `openssl rand -hex 32` |
+| `DATABASE_URL` | **Yes** | — | PostgreSQL connection string |
+| `BLOB_STORAGE_PATH` | No | `./data/blobs` | Chunk container storage path |
 | `REST_PORT` | No | `1975` | REST API port |
-| `WEB_PORT` | No | `3000` | Web UI port |
+| `SERVER_NAME` | No | `Entanglement` | Server display name |
+| `CORS_ORIGINS` | No | `localhost:3000` | Allowed CORS origins (comma-separated) |
+| `MAX_UPLOAD_SIZE` | No | 1GB | Maximum upload size |
 
-> ⚠️ **Security Note:** If `JWT_SECRET` is not set, a random secret is generated on each container restart, logging out all users. Set a persistent secret in `.env` for production.
-
-## Development Setup
-
-### Server (Rust)
-
-```bash
-cd server
-
-# Set required environment variable
-export JWT_SECRET=$(openssl rand -hex 32)
-export DATABASE_URL=postgres://entanglement:entanglement@localhost:5432/entanglement
-
-# Start postgres (if not using Docker)
-docker compose up -d postgres
-
-# Run the server
-cargo run -- serve
-```
-
-### Client (macOS)
-
-Open `client/macos/Entanglement/Entanglement.xcodeproj` in Xcode and build.
-
-### CLI Client (Linux/Cross-Platform)
-
-For Linux servers or headless environments:
-
-```bash
-cd client/cli
-cargo build --release
-./target/release/tangle setup   # Interactive wizard
-./target/release/tangle start   # Start sync daemon
-./target/release/tangle status  # Check sync status
-```
-
-Available commands: `setup`, `start`, `stop`, `status`, `ls`, `history`, `logout`
+See `.env.example` for a complete template.
 
 ## Security
 
-This project follows security best practices:
+- JWT authentication with HS256 (24h access tokens, 30d refresh tokens)
+- Refresh token rotation
+- Rate limiting on auth and upload endpoints (tower_governor)
+- Path traversal prevention with normalization and character whitelisting
+- File ownership enforcement on all user-facing endpoints
+- SQL injection protection (escaped LIKE queries)
+- CORS, CSP, X-Frame-Options, X-Content-Type-Options headers
+- Sanitized error responses (no internal details leaked to clients)
+- Argon2 password hashing
 
-- ✅ JWT authentication with configurable expiration
-- ✅ Refresh token rotation
-- ✅ Rate limiting on authentication endpoints
-- ✅ CORS restrictions
-- ✅ Path traversal prevention
-- ✅ File ownership enforcement
-- ✅ Secure credential storage (Keychain on macOS)
-- ✅ Sanitized error messages (no internal details leaked)
+## Development
+
+### Build & test
+
+```bash
+# Workspace (server + CLI)
+cargo build --workspace
+cargo test --workspace
+
+# Server only
+cd server && cargo test --verbose
+
+# CLI only
+cd client/cli && cargo test --verbose
+
+# macOS
+cd client/macos/Entanglement
+xcodebuild build -project Entanglement.xcodeproj -scheme Entanglement
+```
+
+### Docker
+
+```bash
+make up       # Start services
+make down     # Stop services
+make logs     # Tail logs
+make clean    # Remove containers and volumes
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Run tests (`cargo test --workspace`)
+4. Commit your changes
+5. Open a pull request
 
 ## License
 
-MIT
+[MIT](LICENSE)

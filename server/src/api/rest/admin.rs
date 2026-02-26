@@ -3,6 +3,7 @@
 //! Server info, statistics, and health check endpoints.
 
 use crate::api::AppState;
+use crate::db::users;
 use axum::{
     extract::State,
     http::StatusCode,
@@ -11,7 +12,7 @@ use axum::{
 };
 use serde::Serialize;
 
-use super::error::AppError;
+use super::error::{self, AppError};
 
 // ============================================================================
 // ROUTES
@@ -63,7 +64,19 @@ async fn get_server_info(State(state): State<AppState>) -> Json<ServerInfo> {
     })
 }
 
-async fn get_stats(State(state): State<AppState>) -> Result<Json<StatsResponse>, AppError> {
+async fn get_stats(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<StatsResponse>, AppError> {
+    // SECURITY: Require admin authentication
+    let user_id = error::extract_user_id(&state, &headers)?;
+    let user = users::get_user_by_id(&state.db, user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+    if !user.is_admin {
+        return Err(AppError::Unauthorized("Admin access required".into()));
+    }
+
     let stats = crate::db::get_stats(&state.db).await?;
     Ok(Json(StatsResponse {
         total_users: stats.total_users,

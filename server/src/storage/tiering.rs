@@ -162,12 +162,54 @@ mod tests {
         // Source code -> T1 regardless of size
         let tier = DefaultTierStrategy::determine_tier(&PathBuf::from("code.rs"), 100 * 1024 * 1024);
         assert_eq!(tier, Tier::T1Granular);
-        
+
         // Disk image -> T4 regardless of size
         let tier = DefaultTierStrategy::determine_tier(&PathBuf::from("disk.iso"), 1024);
         assert_eq!(tier, Tier::T4Jumbo);
-        
+
         let tier = DefaultTierStrategy::determine_tier(&PathBuf::from("vm.vmdk"), 100 * 1024 * 1024);
+        assert_eq!(tier, Tier::T4Jumbo);
+    }
+
+    #[test]
+    fn test_inline_tier() {
+        let tier = DefaultTierStrategy::determine_tier(&PathBuf::from("tiny.bin"), 2 * 1024);
+        assert_eq!(tier, Tier::T0Inline);
+    }
+
+    #[test]
+    fn test_granular_tier() {
+        let tier = DefaultTierStrategy::determine_tier(&PathBuf::from("file.bin"), 100 * 1024);
+        assert_eq!(tier, Tier::T1Granular);
+    }
+
+    #[test]
+    fn test_standard_tier() {
+        let tier = DefaultTierStrategy::determine_tier(&PathBuf::from("file.bin"), 50 * 1024 * 1024);
+        assert_eq!(tier, Tier::T2Standard);
+    }
+
+    #[test]
+    fn test_large_tier() {
+        let tier = DefaultTierStrategy::determine_tier(&PathBuf::from("file.bin"), 1024 * 1024 * 1024);
+        assert_eq!(tier, Tier::T3Large);
+    }
+
+    #[test]
+    fn test_jumbo_tier() {
+        let tier = DefaultTierStrategy::determine_tier(&PathBuf::from("file.bin"), 10 * 1024 * 1024 * 1024);
+        assert_eq!(tier, Tier::T4Jumbo);
+    }
+
+    #[test]
+    fn test_source_code_gets_granular() {
+        let tier = DefaultTierStrategy::determine_tier(&PathBuf::from("large.rs"), 50 * 1024 * 1024);
+        assert_eq!(tier, Tier::T1Granular);
+    }
+
+    #[test]
+    fn test_disk_image_gets_jumbo() {
+        let tier = DefaultTierStrategy::determine_tier(&PathBuf::from("small.iso"), 100);
         assert_eq!(tier, Tier::T4Jumbo);
     }
 }

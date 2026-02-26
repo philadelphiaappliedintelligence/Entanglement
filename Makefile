@@ -1,5 +1,7 @@
 .PHONY: up down clean setup logs
 
+COMPOSE := docker compose -f server/docker-compose.yml
+
 # Default target
 help:
 	@echo "Entanglement Docker commands:"
@@ -17,16 +19,16 @@ setup:
 
 up: setup
 	@echo "Starting Entanglement services..."
-	@docker compose up -d
+	@$(COMPOSE) up -d
 
 down:
 	@echo "Stopping Entanglement services..."
-	@docker compose down
+	@$(COMPOSE) down
 
 logs:
-	@docker compose logs -f server
+	@$(COMPOSE) logs -f server
 
 clean:
 	@echo "Removing containers and volumes..."
-	@docker compose down -v
+	@$(COMPOSE) down -v
 	@docker system prune -f

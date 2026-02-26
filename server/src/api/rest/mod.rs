@@ -20,6 +20,9 @@ use axum::extract::DefaultBodyLimit;
 use axum::http::{header, HeaderValue, Method};
 use axum::Router;
 use std::net::SocketAddr;
+use std::sync::Arc;
+use tower_governor::governor::GovernorConfigBuilder;
+use tower_governor::GovernorLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -44,9 +47,9 @@ pub async fn serve(addr: SocketAddr, state: AppState) -> anyhow::Result<()> {
         .split(',')
         .filter_map(|s| s.trim().parse().ok())
         .collect();
-    
+
     tracing::info!("CORS allowed origins: {:?}", cors_origins);
-    
+
     let cors = CorsLayer::new()
         .allow_origin(cors_origins)
         .allow_methods([
@@ -68,6 +71,15 @@ pub async fn serve(addr: SocketAddr, state: AppState) -> anyhow::Result<()> {
     // SECURITY: Body size limit - 1GB max for file uploads
     let body_limit = DefaultBodyLimit::max(1024 * 1024 * 1024); // 1GB
 
+    // SECURITY: Global rate limiting (100 requests burst, refill ~1 per 100ms per IP)
+    let governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(10)
+            .burst_size(100)
+            .finish()
+            .expect("Failed to build rate limiter config"),
+    );
+
     // Request ID header name
     let x_request_id = header::HeaderName::from_static("x-request-id");
 
@@ -86,6 +98,10 @@ pub async fn serve(addr: SocketAddr, state: AppState) -> anyhow::Result<()> {
         .merge(conflict_routes())
         .merge(sharing_routes())
         .merge(selective_sync_routes())
+        // SECURITY: Rate limiting per IP
+        .layer(GovernorLayer {
+            config: governor_conf,
+        })
         .layer(cors)
         .layer(body_limit)
         // SECURITY: Content Security Policy - prevents XSS and injection attacks

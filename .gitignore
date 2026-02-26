@@ -1,7 +1,8 @@
-# Rust
+# Rust build artifacts
+/target/
 /server/target/
+/client/cli/target/
 **/*.rs.bk
-Cargo.lock
 
 # Generated protobuf
 /server/src/proto/
@@ -27,4 +28,8 @@ Cargo.lock
 # Logs
 *.log
 
+# iOS (not yet implemented)
 client/ios/
+
+# Security audit
+/audit/

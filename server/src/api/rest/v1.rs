@@ -157,12 +157,13 @@ async fn get_file_metadata_v1(
     Path(id): Path<Uuid>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<FileMetadataResponse>, AppError> {
-    let _user_id = extract_user_id(&state, &headers)?;
+    let user_id = extract_user_id(&state, &headers)?;
 
-    let file = files::get_file_by_id_global(&state.db, id)
+    // SECURITY: Verify ownership before returning metadata
+    let file = files::get_file_by_id_with_owner(&state.db, id, user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("File not found".into()))?;
-    
+
     // Extract filename from path
     let name = std::path::Path::new(&file.path)
         .file_name()
@@ -445,20 +446,24 @@ async fn download_v1_file(
     Path(version_id): Path<Uuid>,
     headers: axum::http::HeaderMap,
 ) -> Result<axum::response::Response, AppError> {
-    let _user_id = extract_user_id(&state, &headers)?;
-    
+    let user_id = extract_user_id(&state, &headers)?;
+
     // 1. Try to resolve as version first
     let (version, file_path) = match versions::get_version_ext(&state.db, version_id).await? {
         Some(v) => {
-            // It's a version ID, get the associated file
+            // It's a version ID, get the associated file (ownership check via file lookup)
             let f = files::get_file_by_version_id(&state.db, version_id)
                 .await?
                 .ok_or_else(|| AppError::NotFound("File not found for version".into()))?;
+            // Verify ownership
+            if f.owner_id.is_some() && f.owner_id != Some(user_id) {
+                return Err(AppError::NotFound("File not found".into()));
+            }
             (v, f.path)
         }
         None => {
-            // Fallback: Try to resolve as file ID
-            let f = files::get_file_by_id_global(&state.db, version_id)
+            // Fallback: Try to resolve as file ID (with ownership check)
+            let f = files::get_file_by_id_with_owner(&state.db, version_id, user_id)
                 .await?
                 .ok_or_else(|| AppError::NotFound("File/Version not found".into()))?;
             

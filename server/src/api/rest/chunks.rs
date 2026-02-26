@@ -274,12 +274,13 @@ pub async fn get_file_chunks(
     Path(id): Path<String>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<FileChunksResponse>, AppError> {
-    let _user_id = extract_user_id(&state, &headers)?;
+    let user_id = extract_user_id(&state, &headers)?;
 
     let file_id = Uuid::parse_str(&id)
         .map_err(|_| AppError::BadRequest("Invalid file ID".into()))?;
 
-    let file = files::get_file_by_id_global(&state.db, file_id)
+    // SECURITY: Verify ownership before returning chunk manifest
+    let file = files::get_file_by_id_with_owner(&state.db, file_id, user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("File not found".into()))?;
     

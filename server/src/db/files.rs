@@ -3,6 +3,15 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use serde::Serialize;
 
+/// Escape special characters in LIKE patterns to prevent SQL injection.
+/// Escapes `\`, `%`, and `_` with a backslash so they are treated as literals.
+/// Use with `ESCAPE '\'` in the SQL query.
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct File {
@@ -42,6 +51,36 @@ pub struct FileChange {
     pub size_bytes: Option<i64>,
     pub blob_hash: Option<String>,
     pub original_hash_id: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_escape_like_percent() {
+        assert_eq!(escape_like("%"), "\\%");
+    }
+
+    #[test]
+    fn test_escape_like_underscore() {
+        assert_eq!(escape_like("_"), "\\_");
+    }
+
+    #[test]
+    fn test_escape_like_backslash() {
+        assert_eq!(escape_like("\\"), "\\\\");
+    }
+
+    #[test]
+    fn test_escape_like_normal() {
+        assert_eq!(escape_like("hello"), "hello");
+    }
+
+    #[test]
+    fn test_escape_like_mixed() {
+        assert_eq!(escape_like("foo%bar_baz"), "foo\\%bar\\_baz");
+    }
 }
 
 /// Create or update a file record (upsert) - global (no owner)
@@ -333,34 +372,12 @@ pub async fn soft_delete(pool: &DbPool, file_id: Uuid) -> anyhow::Result<()> {
 
 /// Soft delete a file and all children (recursive)
 /// Used for directory deletion
+/// SECURITY: This function requires a user_id for ownership validation.
+/// Use soft_delete_recursive_with_owner for user-facing operations.
 #[allow(dead_code)]
-pub async fn soft_delete_recursive(pool: &DbPool, file_id: Uuid) -> anyhow::Result<()> {
-    // 1. Get the file path
-    let file = get_file_by_id_global(pool, file_id)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("File not found"))?;
-
-    // 2. If it's a directory (path ends in /), delete all children AND the directory itself
-    if file.path.ends_with('/') {
-        let prefix_pattern = format!("{}%", file.path);
-        
-        // Delete children matching the prefix AND the directory record itself
-        sqlx::query(
-            r#"
-            UPDATE files
-            SET is_deleted = TRUE, updated_at = NOW()
-            WHERE path LIKE $1 OR id = $2
-            "#,
-        )
-        .bind(prefix_pattern)
-        .bind(file_id)
-        .execute(pool)
-        .await?;
-    } else {
-        // Just delete the single file
-        soft_delete(pool, file_id).await?;
-    }
-
+pub async fn soft_delete_recursive(pool: &DbPool, file_id: Uuid, user_id: Uuid) -> anyhow::Result<()> {
+    // Delegate to the ownership-checked version
+    soft_delete_recursive_with_owner(pool, file_id, user_id).await?;
     Ok(())
 }
 
@@ -390,14 +407,14 @@ pub async fn soft_delete_recursive_with_owner(pool: &DbPool, file_id: Uuid, user
 
     // 2. If it's a directory (path ends in /), delete all children AND the directory itself
     if file.path.ends_with('/') {
-        let prefix_pattern = format!("{}%", file.path);
-        
+        let prefix_pattern = format!("{}%", escape_like(&file.path));
+
         // Delete children matching the prefix AND the directory record itself (with ownership check)
         let result = sqlx::query(
             r#"
             UPDATE files
             SET is_deleted = TRUE, updated_at = NOW()
-            WHERE (path LIKE $1 OR id = $2) AND (owner_id = $3 OR owner_id IS NULL)
+            WHERE (path LIKE $1 ESCAPE '\' OR id = $2) AND (owner_id = $3 OR owner_id IS NULL)
             "#
         )
         .bind(prefix_pattern)
@@ -415,15 +432,15 @@ pub async fn soft_delete_recursive_with_owner(pool: &DbPool, file_id: Uuid, user
 
 /// Move or rename a file (and its children if it's a directory)
 pub async fn move_file(pool: &DbPool, file_id: Uuid, new_path: &str, user_id: Uuid) -> anyhow::Result<File> {
-    tracing::info!("DEBUG: move_file entry. ID: {}, Target: {}", file_id, new_path);
-    
+    tracing::debug!(file_id = %file_id, target = %new_path, "move_file entry");
+
     // 1. Get the original file to check permissions and get old path
     let file = get_file_by_id_with_owner(pool, file_id, user_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("File not found or access denied"))?;
 
     let old_path = file.path;
-    tracing::info!("DEBUG: move_file resolving to move_path. Old: '{}', New: '{}'", old_path, new_path);
+    tracing::debug!(old_path = %old_path, new_path = %new_path, "move_file resolving to move_path");
 
     // Delegate to path-based move logic
     move_path(pool, &old_path, new_path, user_id).await
@@ -431,7 +448,7 @@ pub async fn move_file(pool: &DbPool, file_id: Uuid, new_path: &str, user_id: Uu
 
 /// Core move logic working on paths (handles both real and virtual folders)
 pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: Uuid) -> anyhow::Result<File> {
-    tracing::info!("DEBUG: move_path start. '{}' -> '{}'", old_path, new_path);
+    tracing::debug!(old_path = %old_path, new_path = %new_path, "move_path start");
 
     // Smart Root Handling:
     // If user tries to move to "/", they probably mean "Move INTO root", not "Rename TO root".
@@ -458,7 +475,7 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
             } else {
                 resolved_new_path = format!("/{}", name);
             }
-            tracing::info!("DEBUG: inferred move to root -> '{}'", resolved_new_path);
+            tracing::debug!(resolved = %resolved_new_path, "inferred move to root");
         } else {
              // Fallback if we can't parse name (shouldn't happen for valid paths)
              return Err(anyhow::anyhow!("Cannot move root to root"));
@@ -482,7 +499,7 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
     .await?;
 
     if target_exists.is_some() {
-        tracing::error!("DEBUG: Target path already exists: {}", new_path_str);
+        tracing::debug!(path = %new_path_str, "target path already exists");
         return Err(anyhow::anyhow!("Target path already exists"));
     }
 
@@ -492,12 +509,12 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
     // If so, it's a directory, even if missing trailing slash (Legacy Data Fix)
     // We check `old_path + /%` to ensure we don't match `foo_bar` for `foo`
     let check_path = if old_path.ends_with('/') {
-        format!("{}%", old_path)
+        format!("{}%", escape_like(old_path))
     } else {
-        format!("{}/%", old_path)
+        format!("{}/%", escape_like(old_path))
     };
 
-    let has_children = sqlx::query("SELECT 1 FROM files WHERE path LIKE $1 AND is_deleted = FALSE LIMIT 1")
+    let has_children = sqlx::query("SELECT 1 FROM files WHERE path LIKE $1 ESCAPE '\\' AND is_deleted = FALSE LIMIT 1")
         .bind(&check_path)
         .fetch_optional(pool)
         .await?
@@ -511,7 +528,7 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
         .is_some();
 
     if old_path.ends_with('/') || has_children {
-        tracing::info!("DEBUG: Detected Directory Move (Slash: {}, Children: {})", old_path.ends_with('/'), has_children);
+        tracing::debug!(has_slash = old_path.ends_with('/'), has_children, "detected directory move");
         // It's a directory: Move the directory itself AND all children
         
         // CRITICAL: Enforce trailing slash on new_path if we are moving a directory
@@ -521,12 +538,12 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
         } else {
             format!("{}/", new_path_str)
         };
-        tracing::info!("DEBUG: Directory move - clean_new_path enforced: {}", clean_new_path);
+        tracing::debug!(path = %clean_new_path, "directory move - clean path enforced");
 
         // Transaction since we are updating multiple rows potentially
         let mut tx = pool.begin().await?;
 
-        tracing::info!("DEBUG: Moving directory. Old: '{}', New: '{}', Prefix: '{}'", old_path, clean_new_path, check_path);
+        tracing::debug!(old = %old_path, new = %clean_new_path, prefix = %check_path, "moving directory");
 
         // Normalize old_path - handle both with and without trailing slash
         let old_with_slash = if old_path.ends_with('/') {
@@ -536,7 +553,7 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
         };
         let old_without_slash = old_with_slash.trim_end_matches('/').to_string();
 
-        tracing::info!("DEBUG: old_with_slash='{}', old_without_slash='{}'", old_with_slash, old_without_slash);
+        tracing::debug!(old_with_slash = %old_with_slash, old_without_slash = %old_without_slash, "path normalization");
 
         // Update the directory record itself - match EITHER with or without trailing slash
         // This handles legacy data inconsistencies
@@ -554,7 +571,7 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
         .execute(&mut *tx)
         .await?;
         
-        tracing::info!("DEBUG: Directory record update affected: {} rows", dir_result.rows_affected());
+        tracing::debug!(rows = dir_result.rows_affected(), "directory record update");
 
         // Update all children (paths that START WITH the old directory path)
         // Children are stored WITH the parent path prefix, e.g., "/ppooll/file.txt"
@@ -562,22 +579,22 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
             r#"
             UPDATE files
             SET path = $1 || SUBSTRING(path, $2 + 1), updated_at = NOW()
-            WHERE path LIKE $3 
-              AND path != $4 
+            WHERE path LIKE $3 ESCAPE '\'
+              AND path != $4
               AND path != $5
               AND (owner_id = $6 OR owner_id IS NULL)
             "#
         )
         .bind(&clean_new_path)                      // New parent: "/MUSIC/ppooll/"
         .bind(old_with_slash.len() as i32)          // Strip length (includes trailing slash)
-        .bind(format!("{}%", &old_with_slash))      // Match: "/ppooll/%"
+        .bind(format!("{}%", escape_like(&old_with_slash)))  // Match: "/ppooll/%"
         .bind(&old_with_slash)                      // Exclude: "/ppooll/"
         .bind(&old_without_slash)                   // Exclude: "/ppooll"
         .bind(user_id)
         .execute(&mut *tx)
         .await?;
 
-        tracing::info!("DEBUG: Children update affected: {} rows", children_result.rows_affected());
+        tracing::debug!(rows = children_result.rows_affected(), "children update");
 
         // Check if the directory record itself exists and was updated
         let updated_file = sqlx::query_as::<_, File>(
@@ -594,11 +611,10 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
         tx.commit().await?;
 
         if let Some(f) = updated_file {
-            tracing::info!("DEBUG: Directory record found at new path: '{}' with ID: {}", f.path, f.id);
-            tracing::info!("DEBUG: Original hash ID: {:?}", f.original_hash_id);
+            tracing::debug!(path = %f.path, id = %f.id, original_hash = ?f.original_hash_id, "directory record found at new path");
             Ok(f)
         } else {
-            tracing::warn!("DEBUG: No directory record found at new path '{}' - checking if we need to create it", clean_new_path);
+            tracing::debug!(path = %clean_new_path, "no directory record at new path, checking creation");
             // Check if we need to update the directory record itself
             // Sometimes the UPDATE doesn't match the directory itself if it doesn't have children
 
@@ -619,10 +635,10 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
             .await?;
 
             if let Some(f) = dir_result {
-                tracing::info!("DEBUG: Directory record updated directly. ID: {}", f.id);
+                tracing::debug!(id = %f.id, "directory record updated directly");
                 Ok(f)
             } else {
-                tracing::info!("DEBUG: Virtual folder move - upserting new record");
+                tracing::debug!("virtual folder move - upserting new record");
                 // If we moved a virtual folder (no directory record), we should technically Create one now
                 // so the client has a real object to reference for the new path.
             
@@ -639,7 +655,7 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
     }
 
     } else {
-        tracing::info!("DEBUG: Detected File Move");
+        tracing::debug!("detected file move");
         // Single file move
         let updated_file = sqlx::query_as::<_, File>(
             r#"
@@ -655,7 +671,7 @@ pub async fn move_path(pool: &DbPool, old_path: &str, new_path: &str, user_id: U
         .fetch_one(pool)
         .await?;
         
-        tracing::info!("DEBUG: File move success. ID: {}", updated_file.id);
+        tracing::debug!(id = %updated_file.id, "file move success");
 
         Ok(updated_file)
     }
@@ -686,7 +702,10 @@ pub async fn list_files(
     limit: i64,
     offset: i64,
 ) -> anyhow::Result<(Vec<FileWithVersion>, i64)> {
-    let prefix_pattern = prefix.map(|p| format!("{}%", p));
+    let prefix_pattern = prefix.map(|p| format!("{}%", escape_like(p)));
+
+    // SECURITY: Cap limit to prevent memory exhaustion
+    let capped_limit = limit.min(1000);
 
     let files = sqlx::query_as::<_, FileWithVersion>(
         r#"
@@ -695,7 +714,7 @@ pub async fn list_files(
                f.original_hash_id
         FROM files f
         LEFT JOIN versions v ON f.current_version_id = v.id
-        WHERE ($1::text IS NULL OR f.path LIKE $1)
+        WHERE ($1::text IS NULL OR f.path LIKE $1 ESCAPE '\')
           AND ($2 OR f.is_deleted = FALSE)
           AND (f.owner_id = $5 OR f.owner_id IS NULL)
         ORDER BY f.path
@@ -704,7 +723,7 @@ pub async fn list_files(
     )
     .bind(&prefix_pattern)
     .bind(include_deleted)
-    .bind(limit)
+    .bind(capped_limit)
     .bind(offset)
     .bind(user_id)
     .fetch_all(pool)
@@ -714,7 +733,7 @@ pub async fn list_files(
         r#"
         SELECT COUNT(*)
         FROM files
-        WHERE ($1::text IS NULL OR path LIKE $1)
+        WHERE ($1::text IS NULL OR path LIKE $1 ESCAPE '\')
           AND ($2 OR is_deleted = FALSE)
           AND (owner_id = $3 OR owner_id IS NULL)
         "#,
@@ -755,9 +774,12 @@ pub async fn get_changes(
     cursor: Option<DateTime<Utc>>,
     limit: i64,
 ) -> anyhow::Result<Vec<FileChange>> {
+    // SECURITY: Cap limit to prevent memory exhaustion
+    let capped_limit = limit.min(1000);
+
     let changes = sqlx::query_as::<_, FileChange>(
         r#"
-        SELECT f.id, f.path, f.current_version_id, f.is_deleted, 
+        SELECT f.id, f.path, f.current_version_id, f.is_deleted,
                f.created_at, f.updated_at, v.size_bytes, v.blob_hash
         FROM files f
         LEFT JOIN versions v ON f.current_version_id = v.id
@@ -768,7 +790,7 @@ pub async fn get_changes(
         "#,
     )
     .bind(cursor)
-    .bind(limit)
+    .bind(capped_limit)
     .bind(user_id)
     .fetch_all(pool)
     .await?;
@@ -826,8 +848,8 @@ pub async fn list_directory(
     
     // Query all files under this prefix
     // Note: DB paths start with "/" so we match "/prefix%"
-    let prefix_pattern = format!("/{}%", normalized_prefix);
-    
+    let prefix_pattern = format!("/{}%", escape_like(&normalized_prefix));
+
     let files = sqlx::query_as::<_, FileWithVersion>(
         r#"
         SELECT f.id, f.path, f.current_version_id, f.is_deleted,
@@ -835,7 +857,7 @@ pub async fn list_directory(
                f.original_hash_id
         FROM files f
         LEFT JOIN versions v ON f.current_version_id = v.id
-        WHERE f.path LIKE $1 AND f.is_deleted = FALSE
+        WHERE f.path LIKE $1 ESCAPE '\' AND f.is_deleted = FALSE
         ORDER BY f.path
         "#,
     )
@@ -967,13 +989,13 @@ pub async fn list_files_by_user_under_path(
     user_id: Uuid,
     path_prefix: &str,
 ) -> anyhow::Result<Vec<File>> {
-    let prefix_pattern = format!("{}%", path_prefix);
-    
+    let prefix_pattern = format!("{}%", escape_like(path_prefix));
+
     let files = sqlx::query_as::<_, File>(
         r#"
         SELECT id, path, current_version_id, is_deleted, created_at, updated_at, owner_id, original_hash_id
         FROM files
-        WHERE path LIKE $1 
+        WHERE path LIKE $1 ESCAPE '\'
           AND is_deleted = FALSE
           AND (owner_id = $2 OR owner_id IS NULL)
         ORDER BY path

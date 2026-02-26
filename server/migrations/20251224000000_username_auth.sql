@@ -31,27 +31,21 @@ ALTER TABLE users DROP COLUMN IF EXISTS email_verification_expires;
 -- 7. Drop password reset tokens table
 DROP TABLE IF EXISTS password_reset_tokens;
 
--- 8. Create default admin user if no admin exists
--- Password is 'changeme' hashed with argon2
--- You should change this password immediately after first login
+-- 8. Promote existing 'admin' user if no admin exists
+-- SECURITY: Hardcoded default credentials removed.
+-- Use `tangled user create --username admin --admin` for first-run admin setup.
 DO $$
 DECLARE
     admin_exists BOOLEAN;
-    -- Argon2 hash for 'changeme' 
-    default_password_hash TEXT := '$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHRzYWx0c2FsdA$8K1JqL5XoJn4Y9vHqGp1Ow3lXqJ4QzV0r6t7y8u9v0w';
 BEGIN
     SELECT EXISTS(SELECT 1 FROM users WHERE is_admin = TRUE) INTO admin_exists;
-    
+
     IF NOT admin_exists THEN
-        -- Check if 'admin' user exists
+        -- If an 'admin' user already exists, promote them
         IF EXISTS(SELECT 1 FROM users WHERE username = 'admin') THEN
-            -- Make existing admin user an admin
             UPDATE users SET is_admin = TRUE WHERE username = 'admin';
-        ELSE
-            -- Create new admin user
-            INSERT INTO users (username, email, password_hash, is_admin)
-            VALUES ('admin', 'admin@localhost', default_password_hash, TRUE);
         END IF;
+        -- Otherwise, admin must be created via CLI: tangled user create --username admin --admin
     END IF;
 END $$;
 

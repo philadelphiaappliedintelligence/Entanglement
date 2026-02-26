@@ -54,11 +54,11 @@ pub async fn list_file_versions(
     Query(query): Query<ListVersionsQuery>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<ListVersionsResponse>, AppError> {
-    let _user_id = extract_user_id(&state, &headers)?;
+    let user_id = extract_user_id(&state, &headers)?;
     let file_id = Uuid::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid file ID".into()))?;
 
-    // No ownership check for shared folder system
-    let _file = files::get_file_by_id_global(&state.db, file_id)
+    // SECURITY: Verify ownership before listing versions
+    let _file = files::get_file_by_id_with_owner(&state.db, file_id, user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("File not found".into()))?;
 
@@ -89,14 +89,14 @@ pub async fn restore_version(
     Path((file_id, version_id)): Path<(String, String)>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<RestoreResponse>, AppError> {
-    let _user_id = extract_user_id(&state, &headers)?;
+    let user_id = extract_user_id(&state, &headers)?;
     let file_id =
         Uuid::parse_str(&file_id).map_err(|_| AppError::BadRequest("Invalid file ID".into()))?;
     let version_id = Uuid::parse_str(&version_id)
         .map_err(|_| AppError::BadRequest("Invalid version ID".into()))?;
 
-    // No ownership check for shared folder system
-    let file = files::get_file_by_id_global(&state.db, file_id)
+    // SECURITY: Verify ownership before restoring version
+    let file = files::get_file_by_id_with_owner(&state.db, file_id, user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("File not found".into()))?;
 
