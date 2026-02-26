@@ -7,6 +7,13 @@
 // Uses the current host with API port 1975
 const API_BASE = `${window.location.protocol}//${window.location.hostname}:1975`;
 
+// Register service worker for PWA support
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('Service Worker registered:', reg.scope))
+        .catch(err => console.warn('Service Worker registration failed:', err));
+}
+
 // Audio file extensions (defined early for use in renderFileList)
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a', 'wma', 'aiff', 'aif', 'alac', 'opus'];
 
@@ -42,6 +49,7 @@ const ICON_DOWNLOAD = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 
 // DOM Elements
 const loginView = document.getElementById('login-view');
 const browserView = document.getElementById('browser-view');
+const usersView = document.getElementById('users-view');
 const loginForm = document.getElementById('login-form');
 const loginError = document.getElementById('login-error');
 const serverStatus = document.getElementById('server-status');
@@ -126,14 +134,19 @@ function setupEventListeners() {
     if (themeToggle) {
         // Initialize toggle state
         const savedTheme = localStorage.getItem('entanglement_theme');
-        if (savedTheme === 'dark') {
+        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
             themeToggle.classList.add('active');
         }
 
         themeToggle.addEventListener('click', () => {
-            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            // Determine current state
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const isDark = currentTheme === 'dark' || (!currentTheme && systemDark);
+
             if (isDark) {
-                document.documentElement.removeAttribute('data-theme');
+                document.documentElement.setAttribute('data-theme', 'light');
                 localStorage.setItem('entanglement_theme', 'light');
                 themeToggle.classList.remove('active');
             } else {
@@ -248,6 +261,7 @@ function handleLogout() {
 function showLogin() {
     loginView.hidden = false;
     browserView.hidden = true;
+    if (usersView) usersView.hidden = true;
     loginForm.reset();
     loginError.hidden = true;
 }
@@ -255,9 +269,39 @@ function showLogin() {
 function showBrowser() {
     loginView.hidden = true;
     browserView.hidden = false;
+    if (usersView) usersView.hidden = true;
     if (userNameEl) userNameEl.textContent = state.username || 'User';
     // Connect to WebSocket for real-time sync
     connectWebSocket();
+}
+
+function showUsersView() {
+    loginView.hidden = true;
+    browserView.hidden = true;
+    if (usersView) usersView.hidden = false;
+
+    // Set user name in users view dropdown
+    const usersUserName = document.getElementById('users-user-name');
+    if (usersUserName) usersUserName.textContent = state.username || 'User';
+
+    // Update time display
+    updateUsersTime();
+
+    // Load the users list
+    loadAdminUsers();
+}
+
+function hideUsersView() {
+    if (usersView) usersView.hidden = true;
+    browserView.hidden = false;
+}
+
+function updateUsersTime() {
+    const usersTime = document.getElementById('users-time');
+    if (usersTime) {
+        const now = new Date();
+        usersTime.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
 }
 
 // =============================================================================
@@ -344,6 +388,11 @@ function renderBreadcrumb(path) {
             breadcrumb.appendChild(item);
         });
     }
+
+    // Auto-scroll breadcrumb to show current location (rightmost)
+    requestAnimationFrame(() => {
+        breadcrumb.scrollLeft = breadcrumb.scrollWidth;
+    });
 }
 
 function renderFileList(entries) {
@@ -1083,7 +1132,12 @@ function updateClock() {
     // Get time zone abbreviation (e.g. EST, GMT, etc.)
     const timeZone = now.toLocaleTimeString([], { timeZoneName: 'short' }).split(' ').pop();
 
-    currentTime.textContent = `${timeString} ${timeZone}`;
+    const formattedTime = `${timeString} ${timeZone}`;
+
+    // Update both file browser and user management clocks
+    if (currentTime) currentTime.textContent = formattedTime;
+    const usersTime = document.getElementById('users-time');
+    if (usersTime) usersTime.textContent = formattedTime;
 }
 
 // =============================================================================
@@ -1640,13 +1694,71 @@ function setupModals() {
 
     // Setup admin button (only visible if admin)
     const adminBtn = document.getElementById('admin-btn');
-    const adminModal = document.getElementById('admin-modal');
-    if (adminBtn && adminModal) {
+    if (adminBtn) {
         adminBtn.addEventListener('click', () => {
             if (userDropdown) userDropdown.hidden = true;
-            loadAdminUsers();
-            adminModal.hidden = false;
+            showUsersView();
         });
+    }
+
+    // Setup users view back button (Entanglement breadcrumb)
+    const usersBackRoot = document.getElementById('users-back-root');
+    if (usersBackRoot) {
+        usersBackRoot.addEventListener('click', () => {
+            hideUsersView();
+        });
+    }
+
+    // Setup users view dropdown
+    const usersMenuBtn = document.getElementById('users-menu-btn');
+    const usersDropdown = document.getElementById('users-dropdown');
+    if (usersMenuBtn && usersDropdown) {
+        usersMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const expanded = usersMenuBtn.getAttribute('aria-expanded') === 'true';
+            usersMenuBtn.setAttribute('aria-expanded', !expanded);
+            usersDropdown.hidden = expanded;
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!usersMenuBtn.contains(e.target) && !usersDropdown.contains(e.target)) {
+                usersDropdown.hidden = true;
+                usersMenuBtn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    // Setup users view theme toggle
+    const usersThemeToggle = document.getElementById('users-theme-toggle');
+    if (usersThemeToggle) {
+        // Initialize toggle state
+        const savedTheme = localStorage.getItem('entanglement_theme');
+        if (savedTheme === 'dark') {
+            usersThemeToggle.classList.add('active');
+        }
+
+        usersThemeToggle.addEventListener('click', () => {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const themeToggle = document.getElementById('theme-toggle');
+            if (isDark) {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('entanglement_theme', 'light');
+                usersThemeToggle.classList.remove('active');
+                if (themeToggle) themeToggle.classList.remove('active');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('entanglement_theme', 'dark');
+                usersThemeToggle.classList.add('active');
+                if (themeToggle) themeToggle.classList.add('active');
+            }
+        });
+    }
+
+    // Setup users view logout button
+    const usersLogoutBtn = document.getElementById('users-logout-btn');
+    if (usersLogoutBtn) {
+        usersLogoutBtn.addEventListener('click', handleLogout);
     }
 
     // Create user modal
@@ -1711,16 +1823,19 @@ function setupModals() {
         });
     }
 
-    // Setup add rule button
-    const addRuleBtn = document.getElementById('add-rule-btn');
-    if (addRuleBtn) {
-        addRuleBtn.addEventListener('click', addSyncRule);
-    }
 
     // Setup save public URL button
     const savePublicUrlBtn = document.getElementById('save-public-url-btn');
     if (savePublicUrlBtn) {
         savePublicUrlBtn.addEventListener('click', savePublicUrl);
+    }
+
+    // Setup cancel settings button
+    const cancelSettingsBtn = document.getElementById('cancel-settings');
+    if (cancelSettingsBtn) {
+        cancelSettingsBtn.addEventListener('click', () => {
+            document.getElementById('sync-settings-modal').hidden = true;
+        });
     }
 
     // Close modal handlers
@@ -1985,11 +2100,10 @@ async function createShareLink() {
 }
 
 // =============================================================================
-// Selective Sync Settings
+// Settings
 // =============================================================================
 
 async function loadSyncSettings() {
-    const syncRulesList = document.getElementById('sync-rules-list');
     const devicesList = document.getElementById('devices-list');
     const publicUrlInput = document.getElementById('public-url-setting');
     const publicUrlHint = document.getElementById('public-url-hint');
@@ -1999,23 +2113,6 @@ async function loadSyncSettings() {
         const savedPublicUrl = localStorage.getItem('entanglement_public_url') || '';
         publicUrlInput.value = savedPublicUrl;
         updatePublicUrlHint(publicUrlHint, savedPublicUrl);
-    }
-
-    // Load sync rules
-    try {
-        const rulesResponse = await fetch(`${API_BASE}/sync/rules`, {
-            headers: {
-                'Authorization': `Bearer ${state.token}`,
-            },
-        });
-
-        if (rulesResponse.ok) {
-            const data = await rulesResponse.json();
-            renderSyncRules(data.rules);
-        }
-    } catch (error) {
-        console.error('Error loading sync rules:', error);
-        if (syncRulesList) syncRulesList.innerHTML = '<p class="error">Failed to load sync rules</p>';
     }
 
     // Load devices
@@ -2036,24 +2133,6 @@ async function loadSyncSettings() {
     }
 }
 
-function renderSyncRules(rules) {
-    const syncRulesList = document.getElementById('sync-rules-list');
-    if (!syncRulesList) return;
-
-    if (rules.length === 0) {
-        syncRulesList.innerHTML = '<p class="empty-hint">No sync rules configured. All files will be synced.</p>';
-        return;
-    }
-
-    syncRulesList.innerHTML = rules.map(rule => `
-        <div class="sync-rule-item" data-id="${rule.id}">
-            <span class="rule-type ${rule.rule_type}">${rule.rule_type}</span>
-            <span class="rule-pattern">${escapeHtml(rule.path_pattern)}</span>
-            <button class="btn-icon btn-danger" onclick="deleteSyncRule('${rule.id}')" title="Delete rule">&times;</button>
-        </div>
-    `).join('');
-}
-
 function renderDevices(devices) {
     const devicesList = document.getElementById('devices-list');
     if (!devicesList) return;
@@ -2072,61 +2151,6 @@ function renderDevices(devices) {
             <span class="device-status ${device.is_active ? 'active' : 'inactive'}">${device.is_active ? 'Active' : 'Inactive'}</span>
         </div>
     `).join('');
-}
-
-async function addSyncRule() {
-    const ruleType = document.getElementById('new-rule-type')?.value;
-    const pattern = document.getElementById('new-rule-pattern')?.value?.trim();
-
-    if (!pattern) {
-        alert('Please enter a path pattern');
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/sync/rules`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${state.token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                rule_type: ruleType,
-                path_pattern: pattern,
-            }),
-        });
-
-        if (!response.ok) throw new Error('Failed to add rule');
-
-        const patternInput = document.getElementById('new-rule-pattern');
-        if (patternInput) patternInput.value = '';
-        loadSyncSettings();
-
-    } catch (error) {
-        console.error('Error adding sync rule:', error);
-        alert('Failed to add rule: ' + error.message);
-    }
-}
-
-async function deleteSyncRule(ruleId) {
-    if (!confirm('Delete this sync rule?')) return;
-
-    try {
-        const response = await fetch(`${API_BASE}/sync/rules/${ruleId}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${state.token}`,
-            },
-        });
-
-        if (!response.ok) throw new Error('Failed to delete rule');
-
-        loadSyncSettings();
-
-    } catch (error) {
-        console.error('Error deleting sync rule:', error);
-        alert('Failed to delete rule: ' + error.message);
-    }
 }
 
 // =============================================================================
@@ -2172,14 +2196,8 @@ function savePublicUrl() {
     // Update hint
     updatePublicUrlHint(publicUrlHint, url);
 
-    // Show confirmation
-    if (saveBtn) {
-        const originalText = saveBtn.textContent;
-        saveBtn.textContent = 'Saved!';
-        setTimeout(() => {
-            saveBtn.textContent = originalText;
-        }, 1500);
-    }
+    // Close the modal
+    document.getElementById('sync-settings-modal').hidden = true;
 }
 
 function getPublicUrl() {
@@ -2360,8 +2378,9 @@ showBrowser = function () {
 // =============================================================================
 
 async function loadAdminUsers() {
-    const userList = document.getElementById('admin-user-list');
-    const errorEl = document.getElementById('admin-error');
+    const userList = document.getElementById('users-list');
+    const errorEl = document.getElementById('users-error');
+    const usersCount = document.getElementById('users-count');
     errorEl.hidden = true;
 
     try {
@@ -2376,6 +2395,9 @@ async function loadAdminUsers() {
 
         const users = await response.json();
         renderAdminUsers(users);
+        if (usersCount) {
+            usersCount.textContent = `${users.length} user${users.length !== 1 ? 's' : ''}`;
+        }
     } catch (error) {
         errorEl.textContent = error.message;
         errorEl.hidden = false;
@@ -2384,7 +2406,7 @@ async function loadAdminUsers() {
 }
 
 function renderAdminUsers(users) {
-    const userList = document.getElementById('admin-user-list');
+    const userList = document.getElementById('users-list');
 
     if (users.length === 0) {
         userList.innerHTML = '<tr><td colspan="4" class="empty-state">No users found</td></tr>';
@@ -2396,14 +2418,28 @@ function renderAdminUsers(users) {
         const roleClass = user.is_admin ? 'role-admin' : 'role-user';
         const created = new Date(user.created_at).toLocaleDateString();
 
+        // Actions: Reset Password and Delete
+        // Styled as .btn-toolbar for consistency with "Add User"
         return `
             <tr>
-                <td><strong>${escapeHtml(user.username)}</strong></td>
-                <td><span class="role-badge ${roleClass}">${role}</span></td>
-                <td>${created}</td>
-                <td class="action-cell">
-                    <button class="btn-action btn-action-secondary" onclick="showResetPasswordModal('${user.id}', '${escapeHtml(user.username)}')">Reset Password</button>
-                    <button class="btn-action btn-action-danger" onclick="deleteUser('${user.id}', '${escapeHtml(user.username)}')">Delete</button>
+                <td class="col-name">
+                    <div class="user-entry">
+                        <span class="user-name">${escapeHtml(user.username)}</span>
+                    </div>
+                </td>
+                <td class="col-role"><span class="role-badge ${roleClass}">${role}</span></td>
+                <td class="col-created">${created}</td>
+                <td class="col-actions">
+                    <div class="action-cell">
+                        <button class="btn-toolbar btn-action-reset" onclick="showResetPasswordModal('${user.id}', '${escapeHtml(user.username)}')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            <span class="btn-text">Reset Password</span>
+                        </button>
+                        <button class="btn-toolbar btn-action-delete" onclick="deleteUser('${user.id}', '${escapeHtml(user.username)}')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            <span class="btn-text">Delete</span>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -2445,7 +2481,7 @@ async function handleCreateUser(e) {
 async function deleteUser(userId, username) {
     if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
 
-    const errorEl = document.getElementById('admin-error');
+    const errorEl = document.getElementById('users-error');
     errorEl.hidden = true;
 
     try {

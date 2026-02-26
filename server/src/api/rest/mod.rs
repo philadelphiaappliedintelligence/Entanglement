@@ -22,6 +22,7 @@ use axum::Router;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tracing::Level;
 
@@ -87,6 +88,36 @@ pub async fn serve(addr: SocketAddr, state: AppState) -> anyhow::Result<()> {
         .merge(selective_sync_routes())
         .layer(cors)
         .layer(body_limit)
+        // SECURITY: Content Security Policy - prevents XSS and injection attacks
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("content-security-policy"),
+            HeaderValue::from_static(
+                "default-src 'self'; \
+                 script-src 'self'; \
+                 style-src 'self' 'unsafe-inline'; \
+                 img-src 'self' data: blob:; \
+                 font-src 'self'; \
+                 connect-src 'self' ws: wss:; \
+                 frame-ancestors 'none'; \
+                 base-uri 'self'; \
+                 form-action 'self'"
+            ),
+        ))
+        // SECURITY: Prevent MIME type sniffing
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("x-content-type-options"),
+            HeaderValue::from_static("nosniff"),
+        ))
+        // SECURITY: Prevent clickjacking
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("x-frame-options"),
+            HeaderValue::from_static("DENY"),
+        ))
+        // SECURITY: XSS protection (legacy browsers)
+        .layer(SetResponseHeaderLayer::overriding(
+            header::HeaderName::from_static("x-xss-protection"),
+            HeaderValue::from_static("1; mode=block"),
+        ))
         // Request ID: Generate UUID, set on request, propagate to response
         .layer(PropagateRequestIdLayer::new(x_request_id.clone()))
         .layer(SetRequestIdLayer::new(x_request_id, MakeRequestUuid))

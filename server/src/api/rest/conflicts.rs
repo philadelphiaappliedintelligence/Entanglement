@@ -60,7 +60,7 @@ struct ConflictResponse {
     resolution: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct VersionInfo {
     id: String,
     size_bytes: i64,
@@ -200,16 +200,46 @@ async fn list_conflicts(
             .await?
     };
     
+    // Collect all version IDs for batch fetching
+    let version_ids: Vec<Uuid> = conflicts
+        .iter()
+        .flat_map(|(_, _, _, local_v, remote_v, _, _, _, _, _)| {
+            [local_v.clone(), remote_v.clone()].into_iter().flatten()
+        })
+        .collect();
+    
+    // Batch fetch version info
+    let versions: std::collections::HashMap<Uuid, VersionInfo> = if !version_ids.is_empty() {
+        sqlx::query_as::<_, (Uuid, i64, String, DateTime<Utc>)>(
+            "SELECT id, size_bytes, blob_hash, created_at FROM versions WHERE id = ANY($1)"
+        )
+        .bind(&version_ids)
+        .fetch_all(&state.db)
+        .await?
+        .into_iter()
+        .map(|(id, size, hash, created)| {
+            (id, VersionInfo {
+                id: id.to_string(),
+                size_bytes: size,
+                blob_hash: hash,
+                created_at: created.to_rfc3339(),
+            })
+        })
+        .collect()
+    } else {
+        std::collections::HashMap::new()
+    };
+    
     let conflict_responses: Vec<ConflictResponse> = conflicts
         .into_iter()
-        .map(|(id, file_id, conflict_type, _local_v, _remote_v, _res, resolved_at, resolution, detected_at, path)| {
+        .map(|(id, file_id, conflict_type, local_v, remote_v, _res, resolved_at, resolution, detected_at, path)| {
             ConflictResponse {
                 id: id.to_string(),
                 file_id: file_id.to_string(),
                 file_path: path,
                 conflict_type,
-                local_version: None, // TODO: Fetch version details
-                remote_version: None,
+                local_version: local_v.and_then(|vid| versions.get(&vid).cloned()),
+                remote_version: remote_v.and_then(|vid| versions.get(&vid).cloned()),
                 detected_at: detected_at.to_rfc3339(),
                 resolved_at: resolved_at.map(|t| t.to_rfc3339()),
                 resolution: if resolution.as_ref().map(|s| s.is_empty()).unwrap_or(true) { None } else { resolution },

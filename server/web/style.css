@@ -4,35 +4,140 @@
    ============================================================================= */
 
 :root {
-    /* Colors - Light Mode */
-    --color-black: #000000;
-    --color-text-primary: #1d1d1f;
-    --color-text-secondary: #86868b;
-    --color-white: #ffffff;
-    --color-bg-main: #ffffff;
-    --color-bg-subtle: #f5f5f7;
-    --color-bg-header: rgba(255, 255, 255, 0.85);
-    --color-border: #d2d2d7;
-    --color-accent: #0066cc;
-    --color-accent-hover: #004499;
-    --color-error-bg: #fff2f2;
-    --color-error-text: #cc3300;
+    /* Base UI Palette (OKLCH) */
+    --color-blue: oklch(45% 50% 264deg);
+    --color-red: oklch(50% 55% 31deg);
+
+    --color-gray-50: oklch(98% 0.25% 264deg);
+    --color-gray-100: oklch(12% 9.5% 264deg / 5%);
+    --color-gray-200: oklch(12% 9% 264deg / 7%);
+    --color-gray-300: oklch(12% 8.5% 264deg / 17%);
+    --color-gray-400: oklch(12% 8% 264deg / 38%);
+    --color-gray-500: oklch(12% 7.5% 264deg / 50%);
+    --color-gray-600: oklch(12% 7% 264deg / 67%);
+    --color-gray-700: oklch(12% 6% 264deg / 77%);
+    --color-gray-800: oklch(12% 5% 264deg / 85%);
+    --color-gray-900: oklch(12% 5% 264deg / 90%);
+    --color-gray-950: oklch(12% 5% 264deg / 95%);
+
+    /* Semantic Mappings - Light Mode Default */
+    --color-black: var(--color-gray-950);
+    --color-white: var(--color-gray-50);
+
+    --color-text-primary: var(--color-gray-900);
+    --color-text-secondary: var(--color-gray-500);
+
+    --color-bg-main: var(--color-white);
+    --color-bg-subtle: var(--color-gray-50);
+    --color-bg-header: oklch(98% 0.25% 264deg / 85%);
+    /* slightly transparent gray-50 */
+    --color-bg-hover: var(--color-gray-100);
+
+    --color-border: var(--color-gray-200);
+
+    /* Reduced blue reliance: Accent is now a sophisticated grey/blue or just grey for some UI */
+    --color-accent: var(--color-blue);
+    --color-accent-hover: oklch(40% 50% 264deg);
+
+    --color-error-text: var(--color-red);
+    --color-error-bg: oklch(98% 0.25% 31deg);
 }
 
-/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-blue: oklch(69% 50% 264deg);
+        --color-red: oklch(80% 55% 31deg);
+
+        --color-gray-50: oklch(17% 0.25% 264deg);
+        --color-gray-100: oklch(28% 0.75% 264deg / 65%);
+        --color-gray-200: oklch(29% 0.75% 264deg / 80%);
+        --color-gray-300: oklch(35% 0.75% 264deg / 80%);
+        --color-gray-400: oklch(47% 0.875% 264deg / 80%);
+        --color-gray-500: oklch(64% 1% 264deg / 80%);
+        --color-gray-600: oklch(82% 1% 264deg / 80%);
+        --color-gray-700: oklch(92% 1.125% 264deg / 80%);
+        --color-gray-800: oklch(93% 0.875% 264deg / 85%);
+        --color-gray-900: oklch(95% 0.5% 264deg / 90%);
+        --color-gray-950: oklch(94% 0.375% 264deg / 95%);
+
+        /* Semantic Mappings - Dark Mode Auto */
+        --color-black: var(--color-white);
+        /* Inverted for dark mode logic if needed */
+        --color-white: var(--color-gray-50);
+
+        --color-text-primary: var(--color-gray-900);
+        --color-text-secondary: var(--color-gray-500);
+
+        --color-bg-main: var(--color-white);
+        --color-bg-subtle: var(--color-gray-50);
+        --color-bg-header: oklch(17% 0.25% 264deg / 85%);
+        --color-bg-hover: var(--color-gray-200);
+
+        --color-border: var(--color-gray-200);
+
+        --color-error-bg: oklch(25% 0.25% 31deg);
+    }
+}
+
+/* Force Dark Mode */
 [data-theme="dark"] {
-    --color-black: #ffffff;
-    --color-text-primary: #f5f5f7;
-    --color-text-secondary: #98989d;
-    --color-white: #1c1c1e;
-    --color-bg-main: #1c1c1e;
-    --color-bg-subtle: #2c2c2e;
-    --color-bg-header: #1c1c1e;
-    --color-border: #38383a;
-    --color-accent: #0a84ff;
-    --color-accent-hover: #409cff;
-    --color-error-bg: #3a1a1a;
-    --color-error-text: #ff6961;
+    --color-blue: oklch(69% 50% 264deg);
+    --color-red: oklch(80% 55% 31deg);
+
+    --color-gray-50: oklch(17% 0.25% 264deg);
+    --color-gray-100: oklch(28% 0.75% 264deg / 65%);
+    --color-gray-200: oklch(29% 0.75% 264deg / 80%);
+    --color-gray-300: oklch(35% 0.75% 264deg / 80%);
+    --color-gray-400: oklch(47% 0.875% 264deg / 80%);
+    --color-gray-500: oklch(64% 1% 264deg / 80%);
+    --color-gray-600: oklch(82% 1% 264deg / 80%);
+    --color-gray-700: oklch(92% 1.125% 264deg / 80%);
+    --color-gray-800: oklch(93% 0.875% 264deg / 85%);
+    --color-gray-900: oklch(95% 0.5% 264deg / 90%);
+    --color-gray-950: oklch(94% 0.375% 264deg / 95%);
+
+    --color-black: var(--color-white);
+    --color-white: var(--color-gray-50);
+    --color-text-primary: var(--color-gray-900);
+    --color-text-secondary: var(--color-gray-500);
+    --color-bg-main: var(--color-white);
+    --color-bg-subtle: var(--color-gray-50);
+    --color-bg-header: oklch(17% 0.25% 264deg / 85%);
+    --color-bg-hover: var(--color-gray-200);
+    --color-border: var(--color-gray-200);
+    --color-error-bg: oklch(25% 0.25% 31deg);
+}
+
+/* Force Light Mode */
+[data-theme="light"] {
+    --color-blue: oklch(45% 50% 264deg);
+    --color-red: oklch(50% 55% 31deg);
+
+    --color-gray-50: oklch(98% 0.25% 264deg);
+    --color-gray-100: oklch(12% 9.5% 264deg / 5%);
+    --color-gray-200: oklch(12% 9% 264deg / 7%);
+    --color-gray-300: oklch(12% 8.5% 264deg / 17%);
+    --color-gray-400: oklch(12% 8% 264deg / 38%);
+    --color-gray-500: oklch(12% 7.5% 264deg / 50%);
+    --color-gray-600: oklch(12% 7% 264deg / 67%);
+    --color-gray-700: oklch(12% 6% 264deg / 77%);
+    --color-gray-800: oklch(12% 5% 264deg / 85%);
+    --color-gray-900: oklch(12% 5% 264deg / 90%);
+    --color-gray-950: oklch(12% 5% 264deg / 95%);
+
+    --color-black: var(--color-gray-950);
+    --color-white: var(--color-gray-50);
+    --color-text-primary: var(--color-gray-900);
+    --color-text-secondary: var(--color-gray-500);
+    --color-bg-main: var(--color-white);
+    --color-bg-subtle: var(--color-gray-50);
+    --color-bg-header: oklch(98% 0.25% 264deg / 85%);
+    --color-bg-hover: var(--color-gray-100);
+    --color-border: var(--color-gray-200);
+    --color-accent: var(--color-blue);
+    --color-accent-hover: oklch(40% 50% 264deg);
+    --color-error-text: var(--color-red);
+    --color-error-bg: oklch(98% 0.25% 31deg);
 }
 
 :root {
@@ -192,24 +297,39 @@ body {
 .btn-primary {
     width: 100%;
     padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    padding: 0 16px;
     font-family: var(--font-sans);
     font-size: var(--font-size-base);
-    font-weight: 600;
-    color: var(--color-accent);
-    background-color: rgba(0, 102, 204, 0.1);
-    border: none;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
     border-radius: var(--border-radius-sm);
     cursor: pointer;
     transition: all 0.15s ease;
+    user-select: none;
 }
 
 .btn-primary:hover {
-    background-color: var(--color-accent);
-    color: var(--color-white);
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.btn-primary:active {
+    background-color: var(--color-border);
+}
+
+.btn-primary:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
 }
 
 .btn-primary:disabled {
-    background-color: var(--color-text-secondary);
+    color: var(--color-text-secondary);
     cursor: not-allowed;
     opacity: 0.7;
 }
@@ -267,12 +387,26 @@ body {
 
 .browser-header .logo-img {
     height: 28px;
+    display: block;
     margin: 0;
+}
+
+/* Ensure header-left centers its content vertically */
+.header-left {
+    display: flex;
+    align-items: center;
+    height: 100%;
 }
 
 /* Invert logo in dark mode */
 [data-theme="dark"] .logo-img {
     filter: invert(1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .logo-img {
+        filter: invert(1);
+    }
 }
 
 .header-right {
@@ -323,10 +457,10 @@ body {
     margin-top: 8px;
     background-color: var(--color-white);
     min-width: 200px;
-    border-radius: var(--border-radius-md);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    border: 1px solid var(--color-border);
-    padding: 4px;
+    border-radius: 6px;
+    box-shadow: 0 10px 15px -3px var(--color-gray-200), 0 4px 6px -4px var(--color-gray-200);
+    outline: 1px solid var(--color-gray-200);
+    padding-block: 4px;
     z-index: 200;
     transform-origin: top right;
     animation: dropdown-appear 0.1s ease-out;
@@ -348,20 +482,36 @@ body {
     display: block;
     width: 100%;
     text-align: left;
-    padding: 8px 12px;
+    padding: 8px 32px 8px 16px;
     background: none;
     border: none;
     font-family: var(--font-sans);
     font-size: var(--font-size-sm);
+    line-height: 1rem;
     color: var(--color-text-primary);
-    cursor: pointer;
-    border-radius: var(--border-radius-sm);
+    cursor: default;
+    user-select: none;
+    position: relative;
+    z-index: 0;
+}
+
+.dropdown-item::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset-block: 0;
+    inset-inline: 4px;
+    border-radius: 4px;
+    background-color: transparent;
     transition: background-color 0.1s ease;
 }
 
+.dropdown-item:hover::before {
+    background-color: var(--color-gray-900);
+}
+
 .dropdown-item:hover {
-    background-color: var(--color-bg-subtle);
-    color: var(--color-accent);
+    color: var(--color-gray-50);
 }
 
 /* Settings icon button */
@@ -390,19 +540,17 @@ body {
 
 /* Dropdown header (username) */
 .dropdown-header {
-    padding: 8px 12px;
+    padding: 8px 16px;
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
     color: var(--color-text-secondary);
-    border-bottom: 1px solid var(--color-border);
-    margin-bottom: 4px;
 }
 
 /* Dropdown separator */
 .dropdown-separator {
     height: 1px;
-    background-color: var(--color-border);
-    margin: 4px 0;
+    background-color: var(--color-gray-200);
+    margin: 6px 16px;
 }
 
 /* Theme toggle row */
@@ -410,7 +558,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
+    padding: 8px 16px;
     font-size: var(--font-size-sm);
     color: var(--color-text-primary);
 }
@@ -426,7 +574,7 @@ body {
 }
 
 .toggle-switch.active {
-    background-color: var(--color-accent);
+    background-color: #ffffff;
 }
 
 .toggle-switch::after {
@@ -444,6 +592,7 @@ body {
 
 .toggle-switch.active::after {
     transform: translateX(18px);
+    background-color: #1a1a1a;
 }
 
 /* User Info & Old Button Styles (Removed or adapted) */
@@ -458,6 +607,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 12px var(--page-padding);
+    padding-left: calc(var(--page-padding) + 12px);
     background-color: var(--color-white);
     flex-shrink: 0;
 }
@@ -486,13 +636,13 @@ body {
 }
 
 .btn-toolbar:hover {
-    background-color: var(--color-accent);
-    border-color: var(--color-accent);
-    color: var(--color-white);
+    background-color: var(--color-bg-hover);
+    border-color: var(--color-border);
+    color: var(--color-text-primary);
 }
 
 .btn-toolbar:hover svg {
-    stroke: var(--color-white);
+    stroke: var(--color-text-primary);
 }
 
 .btn-toolbar svg {
@@ -936,9 +1086,9 @@ body {
     gap: 12px;
     padding: 8px 16px;
     background-color: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    border-radius: 10px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+    outline: 1px solid var(--color-gray-200);
+    border-radius: 6px;
+    box-shadow: 0 10px 15px -3px var(--color-gray-200), 0 4px 6px -4px var(--color-gray-200);
     z-index: 50;
 }
 
@@ -1173,12 +1323,12 @@ body {
     position: fixed;
     background-color: var(--color-white);
     min-width: 160px;
-    border-radius: var(--border-radius-md);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    border: 1px solid var(--color-border);
-    padding: 4px;
+    border-radius: 6px;
+    box-shadow: 0 10px 15px -3px var(--color-gray-200), 0 4px 6px -4px var(--color-gray-200);
+    outline: 1px solid var(--color-gray-200);
+    padding-block: 4px;
     z-index: 300;
-    transform-origin: top left;
+    transform-origin: var(--transform-origin, top left);
     animation: context-menu-appear 0.1s ease-out;
 }
 
@@ -1200,25 +1350,44 @@ body {
     gap: 10px;
     width: 100%;
     text-align: left;
-    padding: 8px 12px;
+    padding: 8px 32px 8px 16px;
     background: none;
     border: none;
     font-family: var(--font-sans);
     font-size: var(--font-size-sm);
+    line-height: 1rem;
     color: var(--color-text-primary);
-    cursor: pointer;
-    border-radius: var(--border-radius-sm);
+    cursor: default;
+    user-select: none;
+    position: relative;
+    z-index: 0;
+}
+
+.context-menu-item::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset-block: 0;
+    inset-inline: 4px;
+    border-radius: 4px;
+    background-color: transparent;
     transition: background-color 0.1s ease;
 }
 
+.context-menu-item:hover::before {
+    background-color: var(--color-gray-900);
+}
+
 .context-menu-item:hover {
-    background-color: var(--color-bg-subtle);
-    color: var(--color-accent);
+    color: var(--color-gray-50);
+}
+
+.context-menu-item.danger:hover::before {
+    background-color: var(--color-error-text);
 }
 
 .context-menu-item.danger:hover {
-    background-color: var(--color-error-bg);
-    color: var(--color-error-text);
+    color: var(--color-gray-50);
 }
 
 .context-menu-item svg {
@@ -1229,12 +1398,12 @@ body {
 
 .context-menu-separator {
     height: 1px;
-    background-color: var(--color-border);
-    margin: 4px 0;
+    background-color: var(--color-gray-200);
+    margin: 6px 16px;
 }
 
 /* =============================================================================
-   Modal System
+   Modal System (Base UI Style)
    ============================================================================= */
 
 .modal {
@@ -1247,81 +1416,119 @@ body {
 }
 
 .modal-backdrop {
-    position: absolute;
+    position: fixed;
     inset: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    min-height: 100dvh;
+    background-color: black;
+    opacity: 0.2;
+    transition: opacity 150ms cubic-bezier(0.45, 1.005, 0, 1.005);
+}
+
+@media (prefers-color-scheme: dark) {
+    .modal-backdrop {
+        opacity: 0.7;
+    }
+}
+
+[data-theme="dark"] .modal-backdrop {
+    opacity: 0.7;
 }
 
 .modal-container {
     position: relative;
-    width: 90%;
-    max-width: 420px;
+    width: 24rem;
+    max-width: calc(100vw - 3rem);
     max-height: 80vh;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    outline: 1px solid var(--color-gray-200);
     background-color: var(--color-white);
-    border-radius: var(--border-radius-lg);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    color: var(--color-text-primary);
     overflow: hidden;
-    animation: modal-appear 0.2s ease-out;
+    animation: modal-appear 0.15s ease-out;
+}
+
+@media (prefers-color-scheme: dark) {
+    .modal-container {
+        outline: 1px solid var(--color-gray-300);
+    }
+}
+
+[data-theme="dark"] .modal-container {
+    outline: 1px solid var(--color-gray-300);
 }
 
 .modal-container.modal-lg {
-    max-width: 600px;
+    width: 36rem;
+    max-width: calc(100vw - 3rem);
+}
+
+.modal-container.modal-sm {
+    width: 20rem;
 }
 
 @keyframes modal-appear {
     from {
         opacity: 0;
-        transform: scale(0.95) translateY(10px);
+        transform: scale(0.9);
     }
 
     to {
         opacity: 1;
-        transform: scale(1) translateY(0);
+        transform: scale(1);
     }
 }
 
+/* Modal headers are hidden by default - remove the X button look */
 .modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--color-border);
+    display: none;
 }
 
 .modal-header h2 {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-    margin: 0;
+    margin-top: -0.375rem;
+    margin-bottom: 0.25rem;
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    letter-spacing: -0.0025em;
+    font-weight: 500;
 }
 
 .modal-close {
-    font-size: 24px;
-    line-height: 1;
-    color: var(--color-text-secondary);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--border-radius-sm);
-    transition: background-color 0.1s ease;
-}
-
-.modal-close:hover {
-    background-color: var(--color-bg-subtle);
-    color: var(--color-text-primary);
+    display: none;
 }
 
 .modal-body {
-    padding: 20px;
     max-height: 60vh;
     overflow-y: auto;
+    overflow-x: visible;
+    /* Prevent focus ring clipping */
+    margin: -4px;
+    padding: 4px;
+}
+
+/* Modal title styling (used when header is visible) */
+.modal-body h2,
+.modal-body h3 {
+    margin-top: -0.375rem;
+    margin-bottom: 0.5rem;
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    letter-spacing: -0.0025em;
+    font-weight: 500;
+}
+
+/* Description text in modals */
+.modal-body>p:first-of-type {
+    margin: 0 0 1.5rem;
+    color: var(--color-gray-600);
+}
+
+/* Modal actions */
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1.5rem;
 }
 
 /* =============================================================================
@@ -1409,9 +1616,9 @@ body {
     font-family: var(--font-sans);
     font-size: var(--font-size-sm);
     font-weight: 500;
-    color: var(--color-accent);
-    background-color: rgba(0, 102, 204, 0.1);
-    border: none;
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
     border-radius: var(--border-radius-sm);
     cursor: pointer;
     transition: all 0.15s ease;
@@ -1419,8 +1626,12 @@ body {
 }
 
 .btn-copy:hover {
-    background-color: var(--color-accent);
-    color: var(--color-white);
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.btn-copy:active {
+    background-color: var(--color-border);
 }
 
 /* =============================================================================
@@ -1453,6 +1664,18 @@ body {
     margin: 8px 0 0 0;
 }
 
+.form-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-gray-600);
+    margin: 4px 0 12px 0;
+}
+
+.form-preview {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-500);
+    margin: 12px 0 1rem 0;
+}
+
 .input-with-button {
     display: flex;
     gap: 8px;
@@ -1475,69 +1698,7 @@ body {
     border-color: var(--color-accent);
 }
 
-.sync-rules-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 12px;
-}
 
-.sync-rule-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    background-color: var(--color-bg-subtle);
-    border-radius: var(--border-radius-sm);
-    border: 1px solid var(--color-border);
-}
-
-.rule-type {
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-medium);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 2px 6px;
-    border-radius: 4px;
-}
-
-.rule-type.exclude {
-    background-color: var(--color-error-bg);
-    color: var(--color-error-text);
-}
-
-.rule-type.include {
-    background-color: rgba(52, 199, 89, 0.15);
-    color: #34c759;
-}
-
-.rule-pattern {
-    flex: 1;
-    font-family: 'SF Mono', monospace;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
-}
-
-.add-rule-form {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.add-rule-form select,
-.add-rule-form input {
-    padding: 8px 12px;
-    font-family: var(--font-sans);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
-    background-color: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius-sm);
-}
-
-.add-rule-form input {
-    flex: 1;
-}
 
 .devices-list {
     display: flex;
@@ -1597,17 +1758,27 @@ body {
     font-family: var(--font-sans);
     font-size: var(--font-size-xs);
     font-weight: 500;
-    color: var(--color-accent);
-    background-color: rgba(0, 102, 204, 0.1);
-    border: none;
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
     border-radius: var(--border-radius-sm);
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
 .btn-small:hover {
-    background-color: var(--color-accent);
-    color: var(--color-white);
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+.btn-small:active {
+    background-color: var(--color-border);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-small:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
 }
 
 .btn-secondary {
@@ -1712,10 +1883,10 @@ body {
     left: 0;
     right: 0;
     background-color: var(--color-white);
-    border-radius: var(--border-radius-md);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    border: 1px solid var(--color-border);
-    padding: 4px;
+    border-radius: 6px;
+    box-shadow: 0 10px 15px -3px var(--color-gray-200), 0 4px 6px -4px var(--color-gray-200);
+    outline: 1px solid var(--color-gray-200);
+    padding-block: 4px;
     z-index: 100;
     transform-origin: top center;
     animation: select-dropdown-appear 0.15s ease-out;
@@ -1737,25 +1908,39 @@ body {
     display: block;
     width: 100%;
     text-align: left;
-    padding: 8px 12px;
+    padding: 8px 32px 8px 16px;
     background: none;
     border: none;
     font-family: var(--font-sans);
     font-size: var(--font-size-sm);
+    line-height: 1rem;
     color: var(--color-text-primary);
-    cursor: pointer;
-    border-radius: var(--border-radius-sm);
+    cursor: default;
+    user-select: none;
+    position: relative;
+    z-index: 0;
+}
+
+.custom-select-option::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset-block: 0;
+    inset-inline: 4px;
+    border-radius: 4px;
+    background-color: transparent;
     transition: background-color 0.1s ease;
 }
 
+.custom-select-option:hover::before {
+    background-color: var(--color-gray-900);
+}
+
 .custom-select-option:hover {
-    background-color: var(--color-bg-subtle);
-    color: var(--color-accent);
+    color: var(--color-gray-50);
 }
 
 .custom-select-option.selected {
-    background-color: rgba(0, 102, 204, 0.1);
-    color: var(--color-accent);
     font-weight: var(--font-weight-medium);
 }
 
@@ -1822,23 +2007,106 @@ body {
 }
 
 /* =============================================================================
-   Admin Modal
+   Users View (Full Page User Management)
    ============================================================================= */
 
-.admin-toolbar {
-    margin-bottom: 16px;
+#users-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
-.admin-table {
-    width: 100%;
+/* Back button in header */
+.back-button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px 6px 8px;
+    background: none;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    color: var(--color-accent);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    transition: background-color 0.1s ease;
 }
 
+.back-button:hover {
+    background-color: var(--color-bg-subtle);
+}
+
+.back-button svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Users table specific styles */
+.users-table .col-name {
+    width: 40%;
+}
+
+.users-table .col-role {
+    width: 15%;
+}
+
+.users-table .col-created {
+    width: 25%;
+}
+
+.users-table .col-actions {
+    width: 20%;
+}
+
+/* User entry with avatar */
+.user-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-accent), #5856d6);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 13px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.user-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+}
+
+/* Toolbar in breadcrumb bar */
+.breadcrumb-bar .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: var(--font-size-xs);
+}
+
+/* Role badges */
 .role-badge {
     display: inline-block;
-    padding: 2px 8px;
-    border-radius: 10px;
+    padding: 3px 10px;
+    border-radius: 12px;
     font-size: 11px;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
 }
 
 .role-admin {
@@ -1847,18 +2115,209 @@ body {
 }
 
 .role-user {
-    background: var(--color-bg-tertiary);
+    background: var(--color-bg-subtle);
     color: var(--color-text-secondary);
 }
 
-.admin-table td:last-child {
-    padding-right: 24px;
-}
-
+/* Action buttons in table */
 .action-cell {
     display: flex;
     gap: 8px;
     flex-wrap: nowrap;
+    justify-content: flex-end;
+    min-width: 120px;
+}
+
+/* Override text-overflow for action cells - buttons should never truncate */
+.col-actions {
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* Icons in buttons (hidden by default on desktop for clean text buttons if desired,
+   but user asked for responsive behavior.
+   We will show BOTH icon+text on desktop for consistency with "Add User",
+   and HIDE text on mobile) */
+
+.btn-toolbar svg {
+    display: block;
+    /* Ensure icons are visible */
+}
+
+/* Override btn-toolbar for delete to keep it distinct */
+.btn-action-delete:hover {
+    background-color: var(--color-error-bg);
+    /* Subtle red background */
+    border-color: var(--color-error-text);
+    color: var(--color-error-text);
+}
+
+.btn-action-delete:hover svg {
+    stroke: var(--color-error-text);
+}
+
+/* Responsive: Hide text on smaller screens */
+@media (max-width: 1100px) {
+    .btn-toolbar .btn-text {
+        display: none;
+    }
+
+    .btn-toolbar {
+        padding: 6px;
+        /* Square padding for icons */
+        gap: 0;
+    }
+}
+
+/* Medium screens: Start condensing tables */
+@media (max-width: 900px) {
+
+    /* File table adjustments */
+    .file-table .col-modified {
+        display: none;
+    }
+
+    .file-table .col-name {
+        width: 60%;
+    }
+
+    .file-table .col-size {
+        width: 20%;
+    }
+
+    .file-table .col-actions {
+        width: 20%;
+    }
+
+    /* Users table adjustments */
+    .users-table .col-created {
+        display: none;
+    }
+
+    .users-table .col-name {
+        width: 50%;
+    }
+
+    .users-table .col-role {
+        width: 20%;
+    }
+
+    .users-table .col-actions {
+        width: 30%;
+    }
+}
+
+/* More granular responsive control for very narrow screens */
+@media (max-width: 768px) {
+
+    /* Prevent horizontal scroll */
+    .file-browser {
+        overflow-x: hidden;
+    }
+
+    /* File table for mobile */
+    .file-table {
+        table-layout: fixed;
+        width: 100%;
+    }
+
+    .file-table .col-size,
+    .file-table th.col-size,
+    .file-table td.col-size {
+        display: none;
+    }
+
+    .file-table .col-name {
+        width: auto;
+    }
+
+    .file-table .col-actions {
+        width: 90px;
+        min-width: 90px;
+    }
+
+    /* User management table fixes */
+    .users-table .col-role {
+        width: auto;
+        min-width: 50px;
+        padding-right: 8px;
+    }
+
+    .users-table .col-actions {
+        width: auto;
+        min-width: 70px;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .users-table .col-name {
+        width: auto;
+    }
+
+    .action-cell {
+        min-width: auto;
+        justify-content: flex-end;
+        gap: 4px;
+    }
+
+    /* Prevent any dots from appearing in action cells */
+    .file-table .col-actions,
+    .users-table .col-actions {
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    /* Icon-only buttons in users table on mobile */
+    .users-table .btn-toolbar .btn-text {
+        display: none;
+    }
+
+    .users-table .btn-toolbar {
+        padding: 6px;
+        gap: 0;
+    }
+
+    .role-badge {
+        padding: 3px 6px;
+        font-size: 10px;
+    }
+
+    /* Adjust page padding for mobile */
+    :root {
+        --page-padding: 12px;
+    }
+
+    .browser-header {
+        padding: 0 12px;
+    }
+
+    .breadcrumb-bar {
+        padding: 8px 12px;
+    }
+
+    /* Horizontally scrollable breadcrumb for mobile */
+    .breadcrumb {
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        max-width: calc(100vw - 24px);
+        scrollbar-width: none;
+        /* Firefox */
+        -ms-overflow-style: none;
+        /* IE/Edge */
+    }
+
+    .breadcrumb::-webkit-scrollbar {
+        display: none;
+        /* Chrome/Safari */
+    }
+
+    /* Ensure download buttons don't overflow */
+    .btn-download {
+        padding: 4px 8px;
+        font-size: 11px;
+        white-space: nowrap;
+    }
 }
 
 /* Small inline action buttons (Apple style) */
@@ -1940,30 +2399,116 @@ body {
     padding: 12px 16px;
     font-family: var(--font-sans);
     font-size: var(--font-size-base);
-    font-weight: 600;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
     border-radius: var(--border-radius-sm);
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
-.btn-modal-primary {
-    color: var(--color-accent);
-    background-color: rgba(0, 102, 204, 0.1);
-    border: none;
+.btn-modal:hover {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
 }
 
-.btn-modal-primary:hover {
-    background-color: var(--color-accent);
-    color: var(--color-white);
+.btn-modal:active {
+    background-color: var(--color-border);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.btn-modal:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+}
+
+.btn-modal-primary {
+    /* Base style handled by .btn-modal, additional emphasis if needed */
+    font-weight: 600;
 }
 
 .btn-modal-cancel {
-    color: #dc3545;
-    background-color: rgba(220, 53, 69, 0.1);
-    border: none;
+    /* Base style handled by .btn-modal */
+    color: var(--color-text-secondary);
 }
 
 .btn-modal-cancel:hover {
-    background-color: #dc3545;
-    color: white;
+    /* Override hover for cancel if we want it slightly distinct, 
+       but standard grey hover is fine. 
+       Maybe just ensure text color stays correct. */
+    color: var(--color-text-primary);
+}
+
+/* =============================================================================
+   Modal Form Spacing (Match Share Modal)
+   ============================================================================= */
+
+#create-user-form,
+#reset-password-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+#create-user-form .form-group,
+#reset-password-form .form-group {
+    margin-bottom: 0;
+    /* Let flex gap handle spacing */
+}
+
+/* Hide headers for modals that have Cancel buttons (Create User, Reset Password) */
+#create-user-modal .modal-header,
+#reset-password-modal .modal-header {
+    display: none;
+}
+
+/* Adjust padding for body since header is gone */
+#create-user-modal .modal-body,
+#reset-password-modal .modal-body {
+    padding-top: 24px;
+}
+
+/* Standardize input styles in modals to match Share Modal */
+#create-user-form input[type="text"],
+#create-user-form input[type="password"],
+#reset-password-form input[type="password"] {
+    padding: 10px 12px;
+    /* Match .share-form input padding */
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg-subtle);
+    font-size: var(--font-size-sm);
+    width: 100%;
+    /* Ensure full width */
+    box-sizing: border-box;
+    /* Prevent padding from breaking width */
+}
+
+#create-user-form label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    margin-bottom: 6px;
+    /* Slightly more space between label and input */
+    display: block;
+    font-weight: 500;
+}
+
+#create-user-form .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    /* Slight offset */
+}
+
+#create-user-form .checkbox-row label {
+    margin-bottom: 0;
+    font-weight: normal;
+}
+
+/* Ensure modal actions have good spacing from content */
+.modal-actions {
+    margin-top: 8px;
+    /* Plus the gap of 16px = 24px total visual space */
 }

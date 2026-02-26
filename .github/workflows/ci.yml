@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ==========================================================================
+  # Rust Server Tests
+  # ==========================================================================
+  server-tests:
+    name: Server Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: entanglement
+          POSTGRES_PASSWORD: entanglement
+          POSTGRES_DB: entanglement
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          components: clippy, rustfmt
+      
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server -> target
+      
+      - name: Check formatting
+        working-directory: server
+        run: cargo fmt --check
+      
+      - name: Run clippy
+        working-directory: server
+        run: cargo clippy -- -D warnings
+        continue-on-error: true
+      
+      - name: Run tests
+        working-directory: server
+        env:
+          DATABASE_URL: postgres://entanglement:entanglement@localhost:5432/entanglement
+          JWT_SECRET: test-jwt-secret-for-ci-only
+          BLOB_STORAGE_PATH: /tmp/entanglement-blobs
+        run: cargo test --verbose
+
+  # ==========================================================================
+  # CLI Client Tests
+  # ==========================================================================
+  cli-tests:
+    name: CLI Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+      
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: client/cli -> target
+      
+      - name: Build CLI
+        working-directory: client/cli
+        run: cargo build --verbose
+      
+      - name: Run tests
+        working-directory: client/cli
+        run: cargo test --verbose
+        continue-on-error: true
+
+  # ==========================================================================
+  # Docker Build Test
+  # ==========================================================================
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          push: false
+          tags: entanglement-server:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

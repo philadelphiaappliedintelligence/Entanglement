@@ -1,0 +1,54 @@
+name: macOS Build
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'client/macos/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'client/macos/**'
+
+jobs:
+  # ==========================================================================
+  # macOS Client Build & Test
+  # ==========================================================================
+  macos:
+    name: macOS Build
+    runs-on: macos-14
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+      
+      - name: Show Xcode version
+        run: xcodebuild -version
+      
+      - name: Build Entanglement
+        working-directory: client/macos/Entanglement
+        run: |
+          xcodebuild build \
+            -project Entanglement.xcodeproj \
+            -scheme Entanglement \
+            -destination 'platform=macOS' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+      
+      - name: Run Tests
+        working-directory: client/macos/Entanglement
+        run: |
+          xcodebuild test \
+            -project Entanglement.xcodeproj \
+            -scheme Entanglement \
+            -destination 'platform=macOS' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            -skip-testing:EntanglementUITests
+        continue-on-error: true
