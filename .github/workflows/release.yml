@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release -p tangle
+
+      - name: Package
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          ARCHIVE=tangle-${VERSION}-${{ matrix.target }}.tar.gz
+          tar czf ${ARCHIVE} -C target/release tangle
+          if [[ "$OSTYPE" == darwin* ]]; then
+            shasum -a 256 ${ARCHIVE} > ${ARCHIVE}.sha256
+          else
+            sha256sum ${ARCHIVE} > ${ARCHIVE}.sha256
+          fi
+          echo "ARCHIVE=${ARCHIVE}" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tangle-${{ matrix.target }}
+          path: |
+            tangle-*.tar.gz
+            tangle-*.tar.gz.sha256
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create checksums file
+        run: cat *.sha256 > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            tangle-*.tar.gz
+            tangle-*.tar.gz.sha256
+            checksums.txt

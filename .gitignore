@@ -1,0 +1,44 @@
+# Rust build artifacts
+/target/
+/server/target/
+/client/cli/target/
+**/*.rs.bk
+
+# Generated protobuf
+/server/src/proto/
+
+# Environment
+.env
+.env.local
+
+# Data directories
+/data/
+/server/data/
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+
+# macOS client (private repo: Entanglement-macOS)
+client/macos/
+
+# iOS (not yet implemented)
+client/ios/
+
+# Security audit
+/audit/
+
+# Editor/AI tooling
+.claude/
+.windsurf/
+.kira/
+.kiro/

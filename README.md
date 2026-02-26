@@ -121,19 +121,28 @@ cargo run -- serve --foreground # foreground with logs
 
 ### CLI Client
 
+#### Homebrew (macOS)
+
+```bash
+brew install philadelphiaappliedintelligence/tap/tangle
+```
+
+#### From Source
+
 ```bash
 cd client/cli
 cargo build --release
+```
 
-# Configure and connect
-./target/release/tangle setup      # server URL + login
+#### Usage
 
-# Sync
-./target/release/tangle start      # start background sync daemon
-./target/release/tangle status     # check sync status
-./target/release/tangle ls         # list synced files
-./target/release/tangle history    # view file history
-./target/release/tangle down       # stop daemon
+```bash
+tangle setup      # server URL + login
+tangle start      # start background sync daemon
+tangle status     # check sync status
+tangle ls         # list synced files
+tangle history    # view file history
+tangle stop       # stop daemon
 ```
 
 ### macOS Client
