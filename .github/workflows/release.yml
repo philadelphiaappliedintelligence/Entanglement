@@ -18,7 +18,7 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-14
           - target: x86_64-apple-darwin
-            os: macos-13
+            os: macos-14
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
 
@@ -27,19 +27,21 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Cache cargo dependencies
         uses: Swatinem/rust-cache@v2
 
       - name: Build
-        run: cargo build --release -p tangle
+        run: cargo build --release -p tangle --target ${{ matrix.target }}
 
       - name: Package
         shell: bash
         run: |
           VERSION=${GITHUB_REF_NAME}
           ARCHIVE=tangle-${VERSION}-${{ matrix.target }}.tar.gz
-          tar czf ${ARCHIVE} -C target/release tangle
+          tar czf ${ARCHIVE} -C target/${{ matrix.target }}/release tangle
           if [[ "$OSTYPE" == darwin* ]]; then
             shasum -a 256 ${ARCHIVE} > ${ARCHIVE}.sha256
           else
